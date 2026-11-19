@@ -44,8 +44,9 @@ export const environment = {
    * Spotify para el host (PKCE público, sin client secret).
    * Client ID de la app Vinil06: todos los anfitriones usan este mismo ID
    * y autorizan con su propia cuenta Premium; el token vive solo en su pestaña.
-   * Redirect URI registrada en el Dashboard de Spotify:
-   *   http://localhost:4200/spotify/callback
+   * Redirect URIs registradas en el Dashboard de Spotify:
+   *   http://127.0.0.1:4200/spotify/callback  (local; main.ts fuerza este origin)
+   *   https://vinil06.vercel.app/spotify/callback
    */
   spotify: {
     clientId: 'fba39884cee24a938f7579b33b9cf1aa' as string,

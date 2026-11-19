@@ -6,6 +6,7 @@ import {
   ANSWER_DURATION_MS,
   GameMode,
   GamePhase,
+  HostAudioMode,
   KaraokeTurn,
   Player,
   PublicOption,
@@ -18,6 +19,7 @@ import {
 } from '../models/game.models';
 import { createRoomCode, pickOne, randomInt, shuffleArray } from '../utils/random';
 import { AudioService } from './audio.service';
+import { HostAudioControllerService } from './host-audio-controller.service';
 import { HapticsService } from './haptics.service';
 import { PreviewAudioService } from './preview-audio.service';
 import { SpotifyHostAudioService } from './spotify-host-audio.service';
@@ -47,6 +49,7 @@ export class GameEngineService {
   readonly #audio = inject(AudioService);
   readonly #haptics = inject(HapticsService);
   readonly #spotify = inject(SpotifyHostAudioService);
+  readonly #hostAudio = inject(HostAudioControllerService);
   readonly #preview = inject(PreviewAudioService);
 
   readonly roomCode = signal('');
@@ -86,7 +89,9 @@ export class GameEngineService {
       results: this.results(),
       karaoke: this.karaoke(),
       manual: this.manual(),
-      audioUrl: this.audioUrl()
+      audioUrl: this.audioUrl(),
+      listenDurationMs: this.#hostAudio.listenDurationMs(),
+      hostAudioMode: this.#hostAudio.effectiveMode()
     };
   });
 
@@ -114,6 +119,9 @@ export class GameEngineService {
     tracks?: readonly VinilTrack[]
   ): string {
     this.reset();
+    // Sala nueva: descartar vídeo/avisos de la partida anterior (modo y tiempo
+    // elegidos por el host se conservan; solo se limpia la pista en curso).
+    this.#hostAudio.reset();
     if (tracks?.length) this.setCatalog(tracks);
     const code = createRoomCode();
     this.roomCode.set(code);
@@ -176,6 +184,9 @@ export class GameEngineService {
     // Este signal NO se publica a los jugadores (no forma parte de snapshot).
     const trackToPlay = karaokeRound ? this.#previewTrack : pack.tracks[0];
     this.hostTrack.set(trackToPlay ? trackToOption(trackToPlay) : null);
+    // Prepara búsqueda/ID de YouTube y limpia avisos de la ronda anterior.
+    this.#hostAudio.prepareTrack(trackToPlay);
+    this.#hostAudio.stopListen();
 
     this.#enterPhase('SPINNING');
     this.#audio.tone(392, 0.1, 'triangle', 0.06);
@@ -198,6 +209,7 @@ export class GameEngineService {
     this.#clearTimers();
     this.#audio.stopBeat();
     this.#spotify.pause();
+    this.#hostAudio.stopListen();
     this.#enterPhase('PODIUM');
     this.#audio.tone(659.25, 0.18, 'sine', 0.09);
   }
@@ -234,6 +246,7 @@ export class GameEngineService {
       wildcardsLeft: singer.wildcards - 1
     });
     this.hostTrack.set(track);
+    this.#hostAudio.prepareTrack(track);
     this.#audio.flipChime();
     this.#haptics.flip();
   }
@@ -242,6 +255,8 @@ export class GameEngineService {
     const turn = this.karaoke();
     if (this.phase() !== 'KARAOKE_TURN' || !turn) return;
     this.#clearTimers();
+    this.#hostAudio.stopListen();
+    this.#spotify.pause();
 
     const points = outcome === 'done' ? (turn.wildcardUsed ? 1 : 2) : 0;
     this.players.update((list) =>
@@ -284,6 +299,7 @@ export class GameEngineService {
     this.#stopHeartbeat();
     this.#audio.stopBeat();
     this.#spotify.pause();
+    this.#hostAudio.stopListen();
     this.#usedTrackIds.clear();
     this.#previewTrack = null;
     this.#answers.clear();
@@ -337,6 +353,7 @@ export class GameEngineService {
     if (phase !== 'LISTEN_8S' && phase !== 'KARAOKE_TURN') {
       this.audioUrl.set('');
       this.#preview.stop();
+      this.#hostAudio.stopListen();
     }
   }
 
@@ -424,12 +441,30 @@ export class GameEngineService {
     this.options.set(pack.tracks.map(trackToOption));
     this.#enterPhase('LISTEN_8S');
     const url = pack.tracks[0]?.previewUrl ?? '';
+    // El preview de iTunes viaja a TODOS los dispositivos (sin spoilers): es la
+    // fuente universal de los invitados, sin cuenta ni API key.
     this.audioUrl.set(url);
-    // Spotify Premium es opcional; sin él suena el preview de iTunes en cada dispositivo.
-    if (this.#spotify.status() === 'connected') void this.#spotify.play(this.hostTrack());
-    else this.#preview.play(url);
+    this.#hostAudio.startListen();
+
+    const mode: HostAudioMode = this.#hostAudio.effectiveMode();
+    if (mode === 'SPOTIFY_PREMIUM' && this.#spotify.status() === 'connected') {
+      void this.#spotify.play(this.hostTrack());
+    } else if (mode === 'SPOTIFY_PREMIUM') {
+      this.#hostAudio.warn('Spotify no está conectado. Usa YouTube o avanza en manual.');
+      this.#preview.play(url);
+    } else if (mode === 'YOUTUBE') {
+      // El iframe del host suena solo durante la escucha. Si no hay vídeo,
+      // avisamos pero el preview de los invitados sigue corriendo: la ronda avanza.
+      if (!this.#hostAudio.youtubeEmbedUrl()) {
+        this.#hostAudio.warn('Pega un vídeo de YouTube o abre la búsqueda; o revela las cartas.');
+      }
+    } else {
+      // MANUAL: el host decide; el preview suena en su dispositivo.
+      this.#preview.play(url);
+    }
+
     this.#audio.startBeat(pack.bpm);
-    this.#schedule(() => this.#beginFlip(), environment.timings.listenMs);
+    this.#schedule(() => this.#beginFlip(), this.#hostAudio.listenDurationMs());
   }
 
   #startKaraokeTurn(): void {
@@ -457,8 +492,17 @@ export class GameEngineService {
     });
     this.#enterPhase('KARAOKE_TURN');
     this.audioUrl.set(track.previewUrl ?? '');
-    if (this.#spotify.status() === 'connected') void this.#spotify.play(this.hostTrack());
-    else this.#preview.play(track.previewUrl ?? '');
+    this.#hostAudio.prepareTrack(track);
+    this.#hostAudio.startListen();
+    if (this.#hostAudio.effectiveMode() === 'SPOTIFY_PREMIUM' && this.#spotify.status() === 'connected') {
+      void this.#spotify.play(this.hostTrack());
+    } else if (this.#hostAudio.effectiveMode() === 'YOUTUBE') {
+      if (!this.#hostAudio.youtubeEmbedUrl()) {
+        this.#hostAudio.warn('YouTube listo: pega el vídeo o abre la búsqueda para el karaoke.');
+      }
+    } else {
+      this.#preview.play(track.previewUrl ?? '');
+    }
     this.#audio.flipChime();
     this.#haptics.flip();
     this.#schedule(() => this.finishKaraoke('timeout'), this.karaoke()?.durationMs ?? 18000);
@@ -469,6 +513,8 @@ export class GameEngineService {
     this.#audio.flipChime();
     this.#haptics.flip();
     this.#spotify.pause();
+    // Retirar el iframe es la forma fiable de silenciar YouTube sin IFrame API.
+    this.#hostAudio.stopListen();
     this.#enterPhase('FLIP_6S');
     this.#answerOpenedAt = performance.now();
     this.#answers.clear();

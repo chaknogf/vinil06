@@ -8,8 +8,9 @@ import {
   isCatalogPackId,
   packLabel
 } from '../../core/data/vinil06-catalog';
-import { GameMode } from '../../core/models/game.models';
+import { GameMode, HostAudioMode } from '../../core/models/game.models';
 import { GameSessionService } from '../../core/services/game-session.service';
+import { HostAudioControllerService } from '../../core/services/host-audio-controller.service';
 import { PreviewAudioService } from '../../core/services/preview-audio.service';
 import {
   SpotifyCreateIntent,
@@ -25,11 +26,39 @@ interface ModeCard {
   readonly icon: string;
 }
 
+interface AudioModeCard {
+  readonly id: HostAudioMode;
+  readonly name: string;
+  readonly description: string;
+  readonly icon: string;
+}
+
+const AUDIO_MODES: readonly AudioModeCard[] = [
+  {
+    id: 'SPOTIFY_PREMIUM',
+    name: 'Spotify Premium',
+    description: 'Control automático si tienes Premium y un dispositivo activo.',
+    icon: '🟢'
+  },
+  {
+    id: 'YOUTUBE',
+    name: 'YouTube',
+    description: 'Busca o pega el vídeo; suena solo en la escucha, sin Premium.',
+    icon: '▶️'
+  },
+  {
+    id: 'MANUAL',
+    name: 'Manual',
+    description: 'Sin APIs: pones la canción tú y avanzas desde el tablero.',
+    icon: '✋'
+  }
+];
+
 const MODES: readonly ModeCard[] = [
   {
     id: 'CARDS_12',
     name: '12 Rondas',
-    badge: '8s + 6s',
+    badge: '8–15s + 6s',
     description: 'Ruleta de género y década, 4 cartas tocadiscos y podio final.',
     icon: '♠'
   },
@@ -61,9 +90,11 @@ export class LobbyComponent {
   readonly route = inject(ActivatedRoute);
   readonly catalog = inject(CatalogSyncService);
   readonly spotify = inject(SpotifyHostAudioService);
+  readonly audio = inject(HostAudioControllerService);
   readonly preview = inject(PreviewAudioService);
 
   readonly modes = MODES;
+  readonly audioModes = AUDIO_MODES;
   readonly packs = CATALOG_PACKS;
   readonly tab = signal<'create' | 'join'>('create');
   readonly mode = signal<GameMode>('CARDS_12');
@@ -74,11 +105,21 @@ export class LobbyComponent {
   readonly bots = signal(0);
   readonly includeSelf = signal(true);
   readonly manual = signal(false);
-  readonly connectSpotify = signal(false);
   readonly error = signal('');
 
   readonly inSession = computed(() => this.session.inSession());
   readonly selectedMode = computed(() => MODES.find((m) => m.id === this.mode()) ?? MODES[0]!);
+  /** El apodo es obligatorio para entrar: sin él no se abre ninguna conexión. */
+  readonly validNickname = computed(() => this.nickname().trim().length >= 2);
+  readonly canJoin = computed(() => this.validNickname() && this.joinCode().length === 6);
+  /** Solo pedimos login si el host eligió Premium y aún no está conectado. */
+  readonly wantsSpotifyLogin = computed(
+    () =>
+      this.audio.mode() === 'SPOTIFY_PREMIUM' &&
+      !this.manual() &&
+      this.spotify.configured &&
+      this.spotify.status() !== 'connected'
+  );
 
   constructor() {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
@@ -102,7 +143,7 @@ export class LobbyComponent {
 
   async createRoom(): Promise<void> {
     this.preview.unlock();
-    const wantsSpotify = this.#wantsSpotifyLogin();
+    const wantsSpotify = this.wantsSpotifyLogin();
     if (wantsSpotify) {
       // Guardamos solo el formulario (sin tokens) para reanudar tras el redirect.
       this.spotify.saveCreateIntent({
@@ -111,7 +152,9 @@ export class LobbyComponent {
         nickname: this.nickname(),
         bots: this.bots(),
         includeSelf: this.includeSelf(),
-        manual: this.manual()
+        manual: this.manual(),
+        audioMode: this.audio.mode(),
+        listenDurationSec: this.audio.listenDurationSec()
       });
     }
 
@@ -136,9 +179,19 @@ export class LobbyComponent {
     return packLabel(this.pack());
   }
 
+  /** Escribir el apodo tras pegar/vivir con el código también entra automáticamente. */
+  onNickname(value: string): void {
+    this.nickname.set(value);
+    if (this.tab() === 'join' && this.canJoin()) this.joinRoom();
+  }
+
   joinRoom(): void {
     this.preview.unlock();
     const code = this.joinCode().trim().toUpperCase();
+    if (!this.validNickname()) {
+      this.error.set('Escribe tu apodo (al menos 2 letras) para entrar a la sala.');
+      return;
+    }
     if (code.length !== 6) {
       this.error.set('El código de sala tiene 6 caracteres.');
       return;
@@ -160,13 +213,13 @@ export class LobbyComponent {
     this.bots.set(Math.min(3, Math.max(0, value)));
   }
 
-  #wantsSpotifyLogin(): boolean {
-    return (
-      this.connectSpotify() &&
-      !this.manual() &&
-      this.spotify.configured &&
-      this.spotify.status() !== 'connected'
-    );
+  selectAudioMode(mode: HostAudioMode): void {
+    this.audio.setMode(mode);
+  }
+
+  /** Stepper con clamp estricto [8, 15] y paso de 0.5s. */
+  setListenDuration(value: number): void {
+    this.audio.setListenDurationSec(value);
   }
 
   #restoreIntent(intent: SpotifyCreateIntent): void {
@@ -177,8 +230,10 @@ export class LobbyComponent {
     this.bots.set(Math.min(3, Math.max(0, intent.bots)));
     this.includeSelf.set(intent.includeSelf);
     this.manual.set(intent.manual);
-    // Ya volvimos de Spotify: no volver a redirigir aunque el toggle siga activo.
-    this.connectSpotify.set(false);
+    this.audio.setMode(intent.audioMode ?? 'SPOTIFY_PREMIUM');
+    this.audio.setListenDurationSec(intent.listenDurationSec ?? 8);
+    // Ya volvimos de Spotify: el modo Premium queda activo pero no se redirige
+    // otra vez porque el token ya está en memoria (wantsSpotifyLogin es false).
   }
 
   async #resumeAfterOAuth(): Promise<void> {

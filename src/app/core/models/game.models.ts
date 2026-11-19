@@ -9,6 +9,8 @@ export type GamePhase =
   | 'PODIUM';
 
 export type GameMode = 'CARDS_12' | 'KARAOKE' | 'MIXED';
+/** Fuentes de audio que el anfitrión puede elegir para la fase de escucha. */
+export type HostAudioMode = 'SPOTIFY_PREMIUM' | 'YOUTUBE' | 'MANUAL';
 export type Role = 'host' | 'player';
 export type ConnectionStatus = 'idle' | 'connected' | 'unavailable';
 
@@ -30,6 +32,10 @@ export interface Track {
   readonly spotifyUri?: string;
   /** Preview ~30s de iTunes: permite oír la pista sin cuenta ni API key. */
   readonly previewUrl?: string;
+  /** Texto listo para buscar la pista en YouTube cuando no hay Premium. */
+  readonly youtubeQuery?: string;
+  /** ID de vídeo de YouTube, si el catálogo o el host lo conocen. */
+  readonly youtubeVideoId?: string;
 }
 
 /** Pista local con portada SVG embebida (`data:image/svg+xml`), sin red. */
@@ -133,8 +139,14 @@ export interface RoomState {
   readonly manual: boolean;
   /** Preview de la pista en curso. No identifica la respuesta: se envía a todos. */
   readonly audioUrl?: string;
+  /** Margen real de escucha elegido por el host, siempre entre 8000 y 15000 ms. */
+  readonly listenDurationMs: number;
+  /** Fuente de audio activa del anfitrión (con fallback ya aplicado). */
+  readonly hostAudioMode: HostAudioMode;
 }
 
 export const TOTAL_ROUNDS = 12;
-export const LISTEN_DURATION_MS = 8000;
+export const MIN_LISTEN_MS = 8000;
+export const MAX_LISTEN_MS = 15000;
+export const LISTEN_DURATION_MS = MIN_LISTEN_MS;
 export const ANSWER_DURATION_MS = 6000;

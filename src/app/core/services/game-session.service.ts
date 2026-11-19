@@ -56,8 +56,19 @@ export class GameSessionService implements OnDestroy {
     this.role() === 'host' ? this.#engine.hostTrack() : null
   );
 
+  /** Canales WebRTC abiertos (solo peer; con local/cloud el conteo sale del snapshot). */
+  readonly peerConnections = signal(0);
+  /** Jugadores reales en la sala, sin bots: lo que ve el host antes de girar. */
+  readonly onlinePlayers = computed(() =>
+    (this.viewState()?.players ?? []).filter((player) => !player.isBot)
+  );
+  readonly onlineCount = computed(() => this.onlinePlayers().length);
+  readonly onlineNames = computed(() => this.onlinePlayers().map((player) => player.name));
+
   #pendingHost: HostSetup | null = null;
   #helloSent = false;
+  #presenceId: ReturnType<typeof setInterval> | null = null;
+  #lastSeen = new Map<string, number>();
   #subs: Subscription[] = [];
   #unloadHandler: (() => void) | null = null;
 
@@ -76,9 +87,14 @@ export class GameSessionService implements OnDestroy {
     );
 
     this.#subs.push(
+      this.#sync.connectionCount$.subscribe((count) => this.peerConnections.set(count))
+    );
+
+    this.#subs.push(
       this.#sync.ofType('HELLO').subscribe((message) => {
         if (this.role() === 'host') {
           this.#engine.addPlayer(message.clientId, message.payload.nickname);
+          this.#lastSeen.set(message.clientId, Date.now());
         }
       })
     );
@@ -106,7 +122,10 @@ export class GameSessionService implements OnDestroy {
 
     this.#subs.push(
       this.#sync.ofType('BYE').subscribe((message) => {
-        if (this.role() === 'host') this.#engine.removePlayer(message.clientId);
+        if (this.role() === 'host') {
+          this.#engine.removePlayer(message.clientId);
+          this.#lastSeen.delete(message.clientId);
+        }
       })
     );
 
@@ -166,15 +185,18 @@ export class GameSessionService implements OnDestroy {
   join(roomCode: string, nickname: string): void {
     this.leave();
     const code = roomCode.trim().toUpperCase();
-    if (!code) return;
+    const name = nickname.trim().slice(0, 18);
+    // Sin apodo no hay jugador: la UI lo exige y aquí lo verificamos también.
+    if (!code || name.length < 2) return;
 
     this.role.set('player');
-    this.nickname.set(nickname.trim().slice(0, 18) || 'Jugador');
+    this.nickname.set(name);
     this.roomCode.set(code);
     this.remoteState.set(null);
     this.clockOffset.set(0);
     this.#helloSent = false;
     this.#sync.connect(code, 'player', this.clientId);
+    this.#startPresence();
     this.#sendHello();
   }
 
@@ -191,6 +213,7 @@ export class GameSessionService implements OnDestroy {
   }
 
   leave(): void {
+    this.#stopPresence();
     if (this.role() === 'player') {
       this.#sync.publish('BYE', {});
     }
@@ -257,6 +280,7 @@ export class GameSessionService implements OnDestroy {
 
   ngOnDestroy(): void {
     this.leave();
+    this.#stopPresence();
     this.#subs.forEach((sub) => sub.unsubscribe());
     this.#subs = [];
     this.#removeUnloadListeners();
@@ -281,15 +305,51 @@ export class GameSessionService implements OnDestroy {
     );
     this.roomCode.set(code);
     this.#pendingHost = null;
+    this.#startPresence();
 
     // El tablero manual funciona 100% en esta pestaña; el normal usa pub/sub.
     if (!manual) this.#sync.connect(code, 'host', this.clientId);
   }
 
-  #sendHello(): void {
-    if (this.#helloSent || this.role() !== 'player' || this.connection() !== 'connected') return;
+  #sendHello(force = false): void {
+    if (
+      (!force && this.#helloSent) ||
+      this.role() !== 'player' ||
+      this.connection() !== 'connected'
+    ) return;
     this.#sync.publish('HELLO', { nickname: this.nickname() });
     this.#helloSent = true;
+  }
+
+  /**
+   * Presencia viva: el invitado repite su HELLO cada 4s (el host dedupe por
+   * clientId) y el host retira a quien dejó de enviarlo. Así el conteo funciona
+   * también cuando un celular pierde el DataChannel sin llegar a enviar BYE.
+   */
+  #startPresence(): void {
+    this.#stopPresence();
+    this.#presenceId = setInterval(() => {
+      if (this.role() === 'player') {
+        this.#sendHello(true);
+        return;
+      }
+      if (this.role() !== 'host') return;
+      const now = Date.now();
+      for (const [id, seen] of this.#lastSeen) {
+        if (now - seen > 12_000) {
+          this.#lastSeen.delete(id);
+          this.#engine.removePlayer(id);
+        }
+      }
+    }, 4000);
+  }
+
+  #stopPresence(): void {
+    if (this.#presenceId !== null) {
+      clearInterval(this.#presenceId);
+      this.#presenceId = null;
+    }
+    this.#lastSeen.clear();
   }
 
   #updateClockOffset(hostNow: number): void {

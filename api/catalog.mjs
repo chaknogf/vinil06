@@ -61,7 +61,9 @@ function normalize(result) {
     palette: [from, to],
     motif: hash(id) % 4,
     cover: cover.startsWith('https://') ? cover : svgCover(result.trackName, result.artistName),
-    previewUrl
+    previewUrl,
+    // Consulta lista para el modo YouTube del host (sin ID: se busca en vivo).
+    youtubeQuery: `${result.artistName} ${result.trackName}`.trim()
   };
 }
 

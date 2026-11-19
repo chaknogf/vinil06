@@ -104,6 +104,67 @@
           </div>
         </div>
 
+        <div class="field-group audio-group">
+          <span class="field-label">Fuente de audio del anfitrión</span>
+          <div class="audio-modes" role="group" aria-label="Fuente de audio">
+            @for (item of audioModes; track item.id) {
+              <button
+                type="button"
+                class="audio-mode"
+                [class.audio-active]="audio.mode() === item.id"
+                [attr.aria-pressed]="audio.mode() === item.id"
+                (click)="selectAudioMode(item.id)"
+              >
+                <span class="audio-icon" aria-hidden="true">{{ item.icon }}</span>
+                <span class="audio-name">{{ item.name }}</span>
+                <small>{{ item.description }}</small>
+              </button>
+            }
+          </div>
+          @if (audio.mode() === 'SPOTIFY_PREMIUM' && spotify.status() === 'connected') {
+            <p class="field-hint is-ok">
+              Spotify conectado · {{ spotify.deviceName() || 'tu dispositivo' }}.
+            </p>
+          } @else if (audio.mode() === 'SPOTIFY_PREMIUM') {
+            <p class="field-hint">
+              Si no tienes Premium o dispositivo activo, caemos a YouTube: la ronda sigue igual.
+            </p>
+          }
+        </div>
+
+        <div class="field-group duration-group">
+          <span class="field-label">
+            Tiempo de escucha <strong class="tabular">{{ audio.listenDurationSec() }}s</strong>
+          </span>
+          <div class="stepper duration-stepper">
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Quitar medio segundo"
+              (click)="setListenDuration(audio.listenDurationSec() - 0.5)"
+            >−</button>
+            <input
+              class="duration-range"
+              type="range"
+              min="8"
+              max="15"
+              step="0.5"
+              aria-label="Segundos de escucha"
+              [value]="audio.listenDurationSec()"
+              (input)="setListenDuration(+$any($event.target).value)"
+            />
+            <button
+              type="button"
+              class="icon-btn"
+              aria-label="Añadir medio segundo"
+              (click)="setListenDuration(audio.listenDurationSec() + 0.5)"
+            >+</button>
+          </div>
+          <p class="field-hint">
+            Las 4 cartas quedan boca abajo y bloqueadas (8–15s); después tienes 6s para responder.
+          </p>
+        </div>
+
         <div class="toggles">
           <button
             type="button"
@@ -129,30 +190,6 @@
             </span>
             <span class="switch" [class.switch-on]="manual()"></span>
           </button>
-          <button
-            type="button"
-            class="toggle-row"
-            [disabled]="!spotify.configured || manual()"
-            [attr.aria-pressed]="connectSpotify() && spotify.configured && !manual()"
-            (click)="connectSpotify.set(!connectSpotify())"
-          >
-            <span>
-              <strong>Conectar Spotify Premium</strong>
-              <small>
-                @if (spotify.status() === 'connected') {
-                  Conectado · {{ spotify.deviceName() || 'tu dispositivo' }}. Play en los 8s y pausa al voltear.
-                } @else if (spotify.configured) {
-                  Te pediremos login al crear la sala. Sin Premium o sin dispositivo, sigues en manual.
-                } @else {
-                  Configurá <code>spotify.clientId</code> para habilitar el play automático.
-                }
-              </small>
-            </span>
-            <span
-              class="switch"
-              [class.switch-on]="connectSpotify() && spotify.configured && !manual()"
-            ></span>
-          </button>
         </div>
       </section>
 
@@ -165,7 +202,7 @@
         >
           @if (catalog.loading()) {
             Preparando pack…
-          } @else if (connectSpotify() && spotify.configured && !manual() && spotify.status() !== 'connected') {
+          } @else if (wantsSpotifyLogin()) {
             Crear sala y conectar Spotify
           } @else {
             Crear sala y activar tablero
@@ -173,8 +210,10 @@
         </button>
         <p class="cta-note">
           Paso 3: revisarás el aviso de privacidad antes de activar el tablero.
-          @if (connectSpotify() && spotify.configured && !manual() && spotify.status() !== 'connected') {
+          @if (wantsSpotifyLogin()) {
             Después de aceptar, te pediremos login de Spotify.
+          } @else if (audio.mode() === 'YOUTUBE') {
+            Podrás pegar un vídeo de YouTube desde el tablero; sin él, el juego avanza igual.
           }
         </p>
       </div>
@@ -182,7 +221,7 @@
       <section class="glass-panel panel-lg join-panel float-in">
         <p class="step">Entra con código y apodo</p>
 
-        <label class="field-label" for="join-nickname">Apodo</label>
+        <label class="field-label" for="join-nickname">Apodo <span class="required">*</span></label>
         <input
           id="join-nickname"
           class="field"
@@ -190,11 +229,15 @@
           maxlength="18"
           autocomplete="nickname"
           placeholder="¿Cómo te llamas?"
+          [attr.aria-required]="true"
           [value]="nickname()"
-          (input)="nickname.set($any($event.target).value)"
+          (input)="onNickname($any($event.target).value)"
           (keydown)="preview.unlock()"
           (keydown.enter)="joinRoom()"
         />
+        @if (!validNickname()) {
+          <p class="field-hint">Necesitamos tu apodo para mostrarte en el tablero.</p>
+        }
 
         <label class="field-label code-label" for="join-code">Código de sala</label>
         <input
@@ -216,7 +259,12 @@
           <p class="error-text" role="alert">{{ error() }}</p>
         }
 
-        <button type="button" class="btn btn-primary btn-block join-btn" (click)="joinRoom()">
+        <button
+          type="button"
+          class="btn btn-primary btn-block join-btn"
+          [disabled]="!canJoin()"
+          (click)="joinRoom()"
+        >
           Entrar a la sala
         </button>
         <p class="join-note">

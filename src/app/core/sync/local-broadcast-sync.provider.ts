@@ -12,8 +12,11 @@ export class LocalBroadcastSyncProvider implements RoomSyncProvider {
   readonly kind = 'local' as const;
 
   readonly #status$ = new BehaviorSubject<ConnectionStatus>('idle');
+  // BroadcastChannel no tiene canales por jugador: el conteo sale del snapshot.
+  readonly #connectionCount$ = new BehaviorSubject<number>(0);
   readonly #messages$ = new Subject<AnySyncMessage>();
   readonly status: Observable<ConnectionStatus> = this.#status$.asObservable();
+  readonly connectionCount$: Observable<number> = this.#connectionCount$.asObservable();
   readonly messages$: Observable<AnySyncMessage> = this.#messages$.asObservable();
 
   #channel: BroadcastChannel | null = null;

@@ -1,0 +1,88 @@
+<section class="glass-panel audio-panel" aria-label="Audio del anfitrión">
+  <div class="audio-head">
+    <span class="eyebrow">Anfitrión · audio</span>
+    <span
+      class="status-chip"
+      [class.is-ok]="audio.effectiveMode() === 'YOUTUBE' && !!audio.youtubeVideoId()"
+      [class.is-warn]="needsAttention()"
+    >
+      <span class="status-dot" aria-hidden="true"></span>
+      {{ statusLabel() }}
+    </span>
+  </div>
+
+  <p class="mode-line">
+    Fuente: <strong>{{ audio.modeLabel() }}</strong>
+    <span class="mode-duration">· escucha {{ audio.listenDurationSec() }}s</span>
+  </p>
+
+  @if (audio.activeNotice(); as notice) {
+    <div class="notice" role="status">
+      <span>{{ notice }}</span>
+      <button type="button" class="notice-close" aria-label="Cerrar aviso" (click)="audio.dismissNotice()">×</button>
+    </div>
+  }
+
+  @if (track(); as current) {
+    <div class="audio-track">
+      <span class="audio-cover" aria-hidden="true">
+        <app-album-art
+          [palette]="current.palette"
+          [motif]="current.motif"
+          [src]="current.cover ?? ''"
+          uid="host-audio"
+        />
+      </span>
+      <span class="audio-meta">
+        <strong class="audio-title">{{ current.title }}</strong>
+        <span class="audio-artist">{{ current.artist }}</span>
+      </span>
+      <a class="deep-link" [href]="deepLink()" target="_blank" rel="noopener noreferrer">
+        Buscar ↗
+      </a>
+    </div>
+  }
+
+  @if (audio.effectiveMode() === 'YOUTUBE') {
+    <div class="youtube-block">
+      <div class="yt-actions">
+        <button type="button" class="yt-btn" (click)="useSuggestedVideo()">Buscar vídeo ↗</button>
+        <input
+          class="yt-input"
+          type="text"
+          placeholder="Pega un enlace o ID de YouTube"
+          aria-label="Enlace o ID de YouTube"
+          [value]="youtubeInput()"
+          (input)="youtubeInput.set($any($event.target).value)"
+          (keydown.enter)="applyYouTube()"
+        />
+        <button type="button" class="yt-btn" (click)="applyYouTube()">Usar</button>
+      </div>
+
+      @if (audio.listening()) {
+        @if (youtubeEmbedSrc(); as src) {
+          <iframe
+            class="yt-frame"
+            [src]="src"
+            title="YouTube · pista de la ronda"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowfullscreen
+          ></iframe>
+        } @else {
+          <div class="yt-placeholder">
+            Pega un vídeo o pulsa «Buscar vídeo». Mientras tanto, los invitados ya escuchan el preview.
+          </div>
+        }
+      }
+    </div>
+  }
+
+  <div class="manual-actions">
+    @if (canReveal()) {
+      <button type="button" class="manual-btn" (click)="revealNow()">Revelar cartas ahora</button>
+    }
+    @if (canClose()) {
+      <button type="button" class="manual-btn" (click)="closeNow()">Cerrar ronda ahora</button>
+    }
+  </div>
+</section>

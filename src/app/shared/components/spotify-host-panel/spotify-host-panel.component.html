@@ -39,7 +39,7 @@
 
   @if (spotify.status() === 'connected') {
     <div class="connected-row">
-      <span>Play automático al arrancar los 8s · pausa al voltear.</span>
+      <span>Play automático al empezar la escucha · pausa al voltear.</span>
       <button type="button" class="text-btn" (click)="spotify.disconnect()">Desconectar</button>
     </div>
   } @else {

@@ -157,9 +157,12 @@ export class RealtimeCloudSyncProvider implements RoomSyncProvider {
   readonly kind = 'cloud' as const;
 
   readonly #status$ = new BehaviorSubject<ConnectionStatus>('idle');
+  // El transporte cloud es pub/sub: el conteo fiable sale del heartbeat HELLO.
+  readonly #connectionCount$ = new BehaviorSubject<number>(0);
   readonly #transportMessages$ = new Subject<AnySyncMessage>();
   readonly #localMessages$ = new Subject<AnySyncMessage>();
   readonly status = this.#status$.asObservable();
+  readonly connectionCount$ = this.#connectionCount$.asObservable();
   readonly messages$ = merge(this.#transportMessages$, this.#localMessages$);
 
   readonly #transport: CloudTransport;

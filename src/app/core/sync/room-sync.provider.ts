@@ -33,6 +33,8 @@ export type AnySyncMessage = { [K in SyncMessageType]: SyncEnvelope<K> }[SyncMes
 export interface RoomSyncProvider {
   readonly kind: 'local' | 'cloud' | 'peer';
   readonly status: Observable<ConnectionStatus>;
+  /** Canales abiertos hacia otros dispositivos (lo usa el host para el conteo). */
+  readonly connectionCount$: Observable<number>;
   readonly messages$: Observable<AnySyncMessage>;
   connect(roomCode: string, role: Role, clientId: string): void;
   publish(message: AnySyncMessage): void;

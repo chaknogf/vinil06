@@ -1,0 +1,237 @@
+:host {
+  display: block;
+}
+
+.audio-panel {
+  border-radius: 16px;
+  padding: 13px 14px;
+  border-color: rgba(99, 102, 241, 0.28);
+}
+
+.audio-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 62%;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.status-chip.is-ok {
+  color: #6ee7b7;
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.32);
+}
+
+.status-chip.is-warn {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mode-line {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.mode-line strong {
+  color: #c7d2fe;
+}
+
+.mode-duration {
+  color: #6ee7b7;
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+.notice span {
+  flex: 1 1 auto;
+}
+
+.notice-close {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.audio-track {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.audio-cover {
+  display: block;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.audio-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+  flex: 1 1 auto;
+}
+
+.audio-title {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-artist {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deep-link {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: #6ee7b7;
+  text-decoration: none;
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.youtube-block {
+  margin-top: 10px;
+}
+
+.yt-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.yt-btn {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #c7d2fe;
+  background: rgba(99, 102, 241, 0.16);
+  border: 1px solid rgba(129, 140, 248, 0.3);
+  cursor: pointer;
+}
+
+.yt-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  font-size: 11px;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  outline: none;
+}
+
+.yt-input::placeholder {
+  color: var(--text-dim);
+}
+
+.yt-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-top: 9px;
+  border: 0;
+  border-radius: 12px;
+  background: #000;
+}
+
+.yt-placeholder {
+  margin-top: 9px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--text-dim);
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+}
+
+.manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.manual-btn {
+  flex: 1 1 auto;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yt-btn,
+  .manual-btn,
+  .deep-link {
+    transition: none;
+  }
+}

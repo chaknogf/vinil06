@@ -19,6 +19,8 @@ export class PlayerCardComponent {
   readonly clientId = input('');
   readonly clockOffset = input(0);
   readonly canInteract = input(true);
+  /** En el tablero del host evitamos solapar el preview con Spotify/YouTube. */
+  readonly suppressPreview = input(false);
 
   readonly audio = inject(PreviewAudioService);
   readonly phase = computed<GamePhase>(() => this.state().phase);
@@ -34,7 +36,11 @@ export class PlayerCardComponent {
       const key = listening ? `${state.phase}|${state.audioUrl ?? ''}` : '';
       if (key === this.#lastAudioKey) return;
       this.#lastAudioKey = key;
-      if (!key || !state.audioUrl) {
+      // El host ya tiene su fuente (Spotify o YouTube): no duplicamos el preview.
+      const hostHasOwnAudio =
+        this.suppressPreview() &&
+        (state.hostAudioMode === 'SPOTIFY_PREMIUM' || state.hostAudioMode === 'YOUTUBE');
+      if (!key || !state.audioUrl || hostHasOwnAudio) {
         this.audio.stop();
         return;
       }

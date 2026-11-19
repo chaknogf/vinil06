@@ -10,8 +10,8 @@ import { RoomState } from '../../core/models/game.models';
 import { AudioService } from '../../core/services/audio.service';
 import { GameSessionService } from '../../core/services/game-session.service';
 import { LOCAL_PLAYER_ID } from '../../core/services/game-engine.service';
+import { HostAudioPanelComponent } from '../../shared/components/host-audio-panel/host-audio-panel.component';
 import { KaraokeRouletteCardComponent } from '../../shared/components/karaoke-roulette-card/karaoke-roulette-card.component';
-import { SpotifyHostPanelComponent } from '../../shared/components/spotify-host-panel/spotify-host-panel.component';
 import { LeaderboardPanelComponent } from '../../shared/components/leaderboard-panel/leaderboard-panel.component';
 import { PodiumComponent } from '../../shared/components/podium/podium.component';
 import { RouletteComponent } from '../../shared/components/roulette/roulette.component';
@@ -25,7 +25,7 @@ import { PlayerCardComponent } from '../player-card/player-card.component';
     PodiumComponent,
     PlayerCardComponent,
     KaraokeRouletteCardComponent,
-    SpotifyHostPanelComponent
+    HostAudioPanelComponent
   ],
   templateUrl: './host-board.component.html',
   styleUrl: './host-board.component.css',
@@ -79,11 +79,17 @@ export class HostBoardComponent {
     }
   }
 
+  /** Etiqueta de escucha con el tiempo exacto elegido por el host (8–15s). */
+  readonly listenLabel = computed(() => {
+    const sec = this.state().listenDurationMs / 1000;
+    return `${Number.isInteger(sec) ? sec : sec.toFixed(1)}s`;
+  });
+
   phaseLabel(): string {
     const labels: Record<string, string> = {
       LOBBY: 'Sala abierta',
       SPINNING: 'Sorteando',
-      LISTEN_8S: 'Fase 1 · Escucha (8s)',
+      LISTEN_8S: `Fase 1 · Escucha (${this.listenLabel()})`,
       FLIP_6S: 'Fase 2 · Responde (6s)',
       ROUND_RESULT: 'Resultado',
       KARAOKE_TURN: 'Karaoke en curso',

@@ -69,7 +69,7 @@ interface RoundFeedback {
           </div>
         </header>
 
-        <!-- Cronómetro 8.0s (escucha) / 6.0s (respuesta) / turno karaoke -->
+        <!-- Cronómetro configurable 8–15s (escucha) / 6.0s (respuesta) / karaoke -->
         @if (showTimer()) {
           <app-round-timer-bar
             [durationMs]="timerDuration()"
@@ -376,7 +376,9 @@ export class VinylDeckArenaComponent {
 
   readonly timerDuration = computed(() => {
     const currentPhase = this.phase();
-    if (currentPhase === 'LISTEN_8S') return LISTEN_DURATION_MS;
+    if (currentPhase === 'LISTEN_8S') {
+      return this.roomState()?.listenDurationMs ?? LISTEN_DURATION_MS;
+    }
     if (currentPhase === 'KARAOKE_TURN') return this.roomState()?.karaoke?.durationMs ?? 18000;
     return ANSWER_DURATION_MS;
   });

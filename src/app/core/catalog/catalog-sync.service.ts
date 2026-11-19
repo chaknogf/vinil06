@@ -55,6 +55,10 @@ function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilT
     const spotifyUri = rawUri.startsWith('spotify:track:') ? rawUri : '';
     const rawPreview = typeof raw['previewUrl'] === 'string' ? raw['previewUrl'].trim() : '';
     const previewUrl = rawPreview.startsWith('https://') ? rawPreview : '';
+    const rawYtQuery = typeof raw['youtubeQuery'] === 'string' ? raw['youtubeQuery'].trim() : '';
+    const youtubeQuery = rawYtQuery || `${artist} ${title}`.trim();
+    const rawYtId = typeof raw['youtubeVideoId'] === 'string' ? raw['youtubeVideoId'].trim() : '';
+    const youtubeVideoId = /^[\w-]{11}$/.test(rawYtId) ? rawYtId : '';
 
     // Si la URL remota falla al cargar, AlbumArtComponent muestra su SVG local.
     tracks.push({
@@ -69,7 +73,9 @@ function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilT
       motif,
       cover: cover || svgCover({ title, artist, palette, motif }),
       ...(spotifyUri ? { spotifyUri } : {}),
-      ...(previewUrl ? { previewUrl } : {})
+      ...(previewUrl ? { previewUrl } : {}),
+      youtubeQuery,
+      ...(youtubeVideoId ? { youtubeVideoId } : {})
     });
   }
   return tracks;

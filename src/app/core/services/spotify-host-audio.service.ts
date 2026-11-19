@@ -50,6 +50,10 @@ export interface SpotifyCreateIntent {
   readonly bots: number;
   readonly includeSelf: boolean;
   readonly manual: boolean;
+  /** Fuente de audio elegida en el lobby para reanudarla tras el redirect. */
+  readonly audioMode?: 'SPOTIFY_PREMIUM' | 'YOUTUBE' | 'MANUAL';
+  /** Duración de escucha elegida (8..15s) para reanudarla tras el redirect. */
+  readonly listenDurationSec?: number;
 }
 
 const VERIFIER_KEY = 'vinil06_pkce_verifier';
@@ -201,7 +205,17 @@ export class SpotifyHostAudioService {
         nickname: typeof value.nickname === 'string' ? value.nickname : '',
         bots: typeof value.bots === 'number' ? value.bots : 0,
         includeSelf: value.includeSelf !== false,
-        manual: value.manual === true
+        manual: value.manual === true,
+        audioMode:
+          value.audioMode === 'SPOTIFY_PREMIUM' ||
+          value.audioMode === 'YOUTUBE' ||
+          value.audioMode === 'MANUAL'
+            ? value.audioMode
+            : 'SPOTIFY_PREMIUM',
+        listenDurationSec:
+          typeof value.listenDurationSec === 'number'
+            ? Math.min(15, Math.max(8, value.listenDurationSec))
+            : 8
       };
     } catch {
       return null;

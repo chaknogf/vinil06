@@ -17,12 +17,15 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
   readonly kind = 'peer' as const;
 
   readonly #status$ = new BehaviorSubject<ConnectionStatus>('idle');
+  readonly #connectionCount$ = new BehaviorSubject<number>(0);
   readonly #messages$ = new Subject<AnySyncMessage>();
   readonly status: Observable<ConnectionStatus> = this.#status$.asObservable();
+  readonly connectionCount$: Observable<number> = this.#connectionCount$.asObservable();
   readonly messages$: Observable<AnySyncMessage> = this.#messages$.asObservable();
 
   #peer: Peer | null = null;
   #connections: DataConnection[] = [];
+  #openConnections = new Set<DataConnection>();
   #role: Role = 'player';
   #roomId = '';
   #retryId: ReturnType<typeof setTimeout> | null = null;
@@ -80,6 +83,8 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
     }
     for (const connection of this.#connections) connection.close();
     this.#connections = [];
+    this.#openConnections.clear();
+    this.#connectionCount$.next(0);
     if (this.#peer && !this.#peer.destroyed) this.#peer.destroy();
     this.#peer = null;
     this.#status$.next('idle');
@@ -96,6 +101,8 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
 
     connection.on('open', () => {
       this.#retries = 0;
+      this.#openConnections.add(connection);
+      this.#connectionCount$.next(this.#openConnections.size);
       this.#status$.next('connected');
     });
 
@@ -104,12 +111,16 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
       if (message) this.#messages$.next(message);
     });
 
-    connection.on('error', () => this.#onConnectionLost());
-    connection.on('close', () => this.#onConnectionLost());
+    connection.on('error', () => this.#onConnectionLost(connection));
+    connection.on('close', () => this.#onConnectionLost(connection));
   }
 
-  #onConnectionLost(): void {
-    this.#connections = this.#connections.filter((connection) => connection.open);
+  #onConnectionLost(connection?: DataConnection): void {
+    if (connection) this.#openConnections.delete(connection);
+    this.#connectionCount$.next(this.#openConnections.size);
+    this.#connections = connection
+      ? this.#connections.filter((item) => item !== connection)
+      : this.#connections.filter((item) => item.open);
     if (this.#role !== 'player') return;
 
     this.#status$.next('unavailable');

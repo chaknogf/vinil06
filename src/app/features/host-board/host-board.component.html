@@ -27,9 +27,18 @@
         <span class="phase-chip">{{ phaseLabel() }}</span>
         <span class="round tabular">Ronda {{ state().roundIndex + 1 }} / {{ state().totalRounds }}</span>
       </div>
-      <button type="button" class="invite-btn" (click)="copyCode()">
-        {{ copied() ? '¡Copiado!' : 'Copiar invitación' }}
-      </button>
+      <div class="row">
+        <span
+          class="presence-chip"
+          [attr.title]="session.onlineNames().join(', ') || 'Nadie conectado todavía'"
+        >
+          <span aria-hidden="true">👥</span>
+          {{ session.onlineCount() }} en la sala
+        </span>
+        <button type="button" class="invite-btn" (click)="copyCode()">
+          {{ copied() ? '¡Copiado!' : 'Copiar invitación' }}
+        </button>
+      </div>
     </div>
   </header>
 
@@ -46,14 +55,22 @@
         [mode]="state().mode"
       />
 
-      @if (spotifyTrack()) {
-        <app-spotify-host-panel [track]="spotifyTrack()" class="float-in" />
-      }
+      <app-host-audio-panel
+        [track]="spotifyTrack()"
+        [phase]="phase()"
+        class="float-in"
+      />
 
       @if (phase() === 'LOBBY') {
         <section class="glass-panel hint-panel float-in">
           <p class="hint-title">Todo listo para empezar</p>
           <p class="hint-copy">Comparte <strong>#{{ state().roomCode }}</strong> o el enlace copiado. El sorteo elige género y década antes de cada ronda.</p>
+          <p class="presence-copy" aria-live="polite">
+            En la sala: <strong>{{ session.onlineNames().join(', ') || 'solo tú' }}</strong>
+            @if (session.connection() === 'unavailable') {
+              <span class="presence-warn">· señal perdida, reintentando…</span>
+            }
+          </p>
         </section>
       }
 
@@ -72,17 +89,6 @@
             ✓ Cantó {{ turn.wildcardUsed ? '(+1)' : '(+2)' }}
           </button>
           <button type="button" class="btn btn-ghost" (click)="session.karaokeDone(false)">Pasar turno (0)</button>
-        </div>
-      }
-
-      @if (state().manual && (phase() === 'LISTEN_8S' || phase() === 'FLIP_6S')) {
-        <div class="action-grid manual">
-          @if (phase() === 'LISTEN_8S') {
-            <button type="button" class="btn btn-ghost" (click)="session.skipListen()">Revelar cartas ahora</button>
-          }
-          @if (phase() === 'FLIP_6S') {
-            <button type="button" class="btn btn-ghost" (click)="session.closeRound()">Cerrar ronda ahora</button>
-          }
         </div>
       }
 
@@ -127,6 +133,7 @@
           [clientId]="id"
           [clockOffset]="0"
           [canInteract]="true"
+          [suppressPreview]="true"
         />
       } @else {
         <section class="glass-panel hint-panel">

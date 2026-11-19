@@ -17,6 +17,7 @@ import {
 export class RoomSyncService {
   readonly #provider = inject(RoomSyncProviderToken);
   readonly status: Observable<ConnectionStatus> = this.#provider.status;
+  readonly connectionCount$: Observable<number> = this.#provider.connectionCount$;
   readonly kind = this.#provider.kind;
 
   #roomCode = '';
