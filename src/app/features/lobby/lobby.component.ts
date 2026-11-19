@@ -70,7 +70,8 @@ export class LobbyComponent {
   readonly pack = signal<CatalogPackId>('mix');
   readonly nickname = signal('');
   readonly joinCode = signal('');
-  readonly bots = signal(1);
+  // Sin bots por defecto: solo se suman si el host los elige explícitamente.
+  readonly bots = signal(0);
   readonly includeSelf = signal(true);
   readonly manual = signal(false);
   readonly connectSpotify = signal(false);

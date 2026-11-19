@@ -479,7 +479,9 @@ export class GameEngineService {
       if (Math.random() > 0.72 || !correctId) continue;
       const wrong = shuffleArray(this.options()).find((o) => o.id !== correctId);
       const optionId = Math.random() < 0.85 ? correctId : (wrong?.id ?? correctId);
-      const delay = randomInt(1300, 4700);
+      // Responden en la segunda mitad del cronómetro para no ganar siempre
+      // por reflejo: una persona atenta puede llegar antes.
+      const delay = randomInt(2800, 5500);
       this.#schedule(() => this.recordAnswer(bot.id, optionId, delay), delay);
     }
     this.#schedule(() => this.#finishRound(), ANSWER_DURATION_MS);
