@@ -1,0 +1,238 @@
+@if (inSession()) {
+  <app-session-view />
+} @else {
+  <div class="app-column lobby">
+    <header class="hero">
+      <div class="brand">
+        <span class="brand-disc" aria-hidden="true">
+          <span class="brand-label"></span>
+        </span>
+        <div>
+          <h1 class="brand-name">Vinil<span>06</span></h1>
+          <p class="brand-tagline">La fiesta la pone la música. El tablero lo pone Vinil06.</p>
+        </div>
+      </div>
+      <div class="hero-badges">
+        <span class="badge badge-accent"><span class="dot"></span> Sin cuentas</span>
+        <span class="badge badge-indigo">Spotify opcional</span>
+        <span class="badge badge-amber">Sesión efímera</span>
+      </div>
+    </header>
+
+    <div class="segmented tabs">
+      <button type="button" [class.is-active]="tab() === 'create'" (click)="tab.set('create')">Crear sala</button>
+      <button type="button" [class.is-active]="tab() === 'join'" (click)="tab.set('join')">Unirme</button>
+    </div>
+
+    @if (tab() === 'create') {
+      <section class="glass-panel panel-lg float-in">
+        <p class="step">1 / 3 · Elige el modo</p>
+        <div class="modes">
+          @for (item of modes; track item.id) {
+            <button
+              type="button"
+              class="mode-card"
+              [class.mode-active]="mode() === item.id"
+              [attr.aria-pressed]="mode() === item.id"
+              (click)="mode.set(item.id)"
+            >
+              <span class="mode-icon" aria-hidden="true">{{ item.icon }}</span>
+              <span class="mode-body">
+                <span class="mode-head">
+                  <strong>{{ item.name }}</strong>
+                  <span class="mode-badge">{{ item.badge }}</span>
+                </span>
+                <span class="mode-desc">{{ item.description }}</span>
+              </span>
+              <span class="mode-check" aria-hidden="true">{{ mode() === item.id ? '✓' : '' }}</span>
+            </button>
+          }
+        </div>
+      </section>
+
+      <section class="glass-panel panel float-in">
+        <p class="step">2 / 3 · Elige el pack musical</p>
+        <div class="packs" role="group" aria-label="Pack musical">
+          @for (item of packs; track item.id) {
+            <button
+              type="button"
+              class="pack-chip"
+              [class.pack-active]="pack() === item.id"
+              [attr.aria-pressed]="pack() === item.id"
+              (click)="selectPack(item.id)"
+            >
+              <span class="pack-icon" aria-hidden="true">{{ item.icon }}</span>
+              <span class="pack-name">{{ item.shortLabel }}</span>
+            </button>
+          }
+        </div>
+        <p class="pack-detail">{{ selectedPackLabel() }}</p>
+        <p class="pack-note">
+          @if (catalog.loading()) {
+            Sincronizando portadas y metadatos…
+          } @else if (catalog.source() === 'local') {
+            Catálogo local activo · funciona sin red.
+          } @else if (catalog.source() === 'remote') {
+            Pack sincronizado · portadas reales listas.
+          } @else {
+            Se usará el catálogo local si no hay red.
+          }
+        </p>
+      </section>
+
+      <section class="glass-panel panel float-in">
+        <p class="step">3 / 3 · Ajusta la sala</p>
+
+        <label class="field-label" for="host-nickname">Tu apodo (para jugar también)</label>
+        <input
+          id="host-nickname"
+          class="field"
+          type="text"
+          maxlength="18"
+          autocomplete="nickname"
+          placeholder="Tú (Host)"
+          [value]="nickname()"
+          (input)="nickname.set($any($event.target).value)"
+        />
+
+        <div class="field-group">
+          <span class="field-label">Bots para probar solo</span>
+          <div class="stepper">
+            <button type="button" class="icon-btn" aria-label="Quitar bot" (click)="setBots(bots() - 1)">−</button>
+            <span class="stepper-value tabular">{{ bots() }}</span>
+            <button type="button" class="icon-btn" aria-label="Añadir bot" (click)="setBots(bots() + 1)">+</button>
+          </div>
+        </div>
+
+        <div class="toggles">
+          <button
+            type="button"
+            class="toggle-row"
+            [attr.aria-pressed]="includeSelf()"
+            (click)="includeSelf.set(!includeSelf())"
+          >
+            <span>
+              <strong>Incluirme como jugador</strong>
+              <small>Responde desde el panel «Mis cartas» del anfitrión.</small>
+            </span>
+            <span class="switch" [class.switch-on]="includeSelf()"></span>
+          </button>
+          <button
+            type="button"
+            class="toggle-row"
+            [attr.aria-pressed]="manual()"
+            (click)="manual.set(!manual())"
+          >
+            <span>
+              <strong>Tablero manual</strong>
+              <small>Avanzas las fases a mano, sin temporizadores ni red.</small>
+            </span>
+            <span class="switch" [class.switch-on]="manual()"></span>
+          </button>
+          <button
+            type="button"
+            class="toggle-row"
+            [disabled]="!spotify.configured || manual()"
+            [attr.aria-pressed]="connectSpotify() && spotify.configured && !manual()"
+            (click)="connectSpotify.set(!connectSpotify())"
+          >
+            <span>
+              <strong>Conectar Spotify Premium</strong>
+              <small>
+                @if (spotify.status() === 'connected') {
+                  Conectado · {{ spotify.deviceName() || 'tu dispositivo' }}. Play en los 8s y pausa al voltear.
+                } @else if (spotify.configured) {
+                  Te pediremos login al crear la sala. Sin Premium o sin dispositivo, sigues en manual.
+                } @else {
+                  Configurá <code>spotify.clientId</code> para habilitar el play automático.
+                }
+              </small>
+            </span>
+            <span
+              class="switch"
+              [class.switch-on]="connectSpotify() && spotify.configured && !manual()"
+            ></span>
+          </button>
+        </div>
+      </section>
+
+      <div class="cta">
+        <button
+          type="button"
+          class="btn btn-primary btn-block"
+          [disabled]="catalog.loading()"
+          (click)="createRoom()"
+        >
+          @if (catalog.loading()) {
+            Preparando pack…
+          } @else if (connectSpotify() && spotify.configured && !manual() && spotify.status() !== 'connected') {
+            Crear sala y conectar Spotify
+          } @else {
+            Crear sala y activar tablero
+          }
+        </button>
+        <p class="cta-note">
+          Paso 3: revisarás el aviso de privacidad antes de activar el tablero.
+          @if (connectSpotify() && spotify.configured && !manual() && spotify.status() !== 'connected') {
+            Después de aceptar, te pediremos login de Spotify.
+          }
+        </p>
+      </div>
+    } @else {
+      <section class="glass-panel panel-lg join-panel float-in">
+        <p class="step">Entra con código y apodo</p>
+
+        <label class="field-label" for="join-nickname">Apodo</label>
+        <input
+          id="join-nickname"
+          class="field"
+          type="text"
+          maxlength="18"
+          autocomplete="nickname"
+          placeholder="¿Cómo te llamas?"
+          [value]="nickname()"
+          (input)="nickname.set($any($event.target).value)"
+        />
+
+        <label class="field-label code-label" for="join-code">Código de sala</label>
+        <input
+          id="join-code"
+          class="field field-code"
+          type="text"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          maxlength="6"
+          placeholder="ROCK88"
+          [value]="joinCode()"
+          (input)="setCode($any($event.target).value)"
+          (keydown.enter)="joinRoom()"
+        />
+
+        @if (error()) {
+          <p class="error-text" role="alert">{{ error() }}</p>
+        }
+
+        <button type="button" class="btn btn-primary btn-block join-btn" (click)="joinRoom()">
+          Entrar a la sala
+        </button>
+        <p class="join-note">
+          Sin registro ni inicio de sesión: como jugador no conectas Spotify. Tu apodo vive solo en memoria.
+        </p>
+      </section>
+    }
+
+    <section class="privacy-note">
+      <span class="privacy-icon" aria-hidden="true">🔒</span>
+      <p>
+        Vinil06 no guarda playlists, correos ni historiales; los tokens de Spotify (si conectas)
+        viven solo en memoria. Todo se borra al cerrar la pestaña. El anfitrión controla la música
+        desde su tablero o en su propia app de Spotify.
+      </p>
+    </section>
+
+    @if (session.connection() === 'unavailable') {
+      <p class="connection-note">Canal cloud no disponible: usa el proveedor local desde otra pestaña.</p>
+    }
+  </div>
+}

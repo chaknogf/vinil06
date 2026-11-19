@@ -1,0 +1,16 @@
+<div class="app-shell">
+  @if (session.connection() === 'unavailable' && session.inSession()) {
+    <div class="connection-banner" role="status">
+      Sin canal en tiempo real: esta sala sigue en modo local. Usa otra pestaña del mismo navegador.
+    </div>
+  }
+  <app-install-prompt />
+  <router-outlet />
+</div>
+
+<app-ephemeral-privacy-modal
+  [visible]="session.privacyVisible()"
+  (accept)="onAccept()"
+  (manual)="onManual()"
+  (dismiss)="onDismiss()"
+/>

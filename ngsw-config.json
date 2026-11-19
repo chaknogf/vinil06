@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "vinil06-shell",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/favicon.svg",
+          "/favicon.ico",
+          "/index.html",
+          "/manifest.webmanifest",
+          "/main-*.js",
+          "/styles-*.css",
+          "/chunk-*.js",
+          "/icons/*.png",
+          "/icons/*.svg"
+        ]
+      }
+    },
+    {
+      "name": "vinil06-assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": [
+          "/assets/**",
+          "/*.(svg|cur|jpg|jpeg|png|webp|gif|otf|ttf|woff|woff2|ani)"
+        ]
+      }
+    }
+  ],
+  "navigationUrls": [
+    "/",
+    "/**/*",
+    "!/**/*.*",
+    "!/api/**",
+    "!/ngsw.json"
+  ]
+}

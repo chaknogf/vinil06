@@ -1,0 +1,56 @@
+@if (visible()) {
+  <div class="backdrop" (keydown)="onKeydown($event)">
+    <section
+      class="panel glass-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="privacy-title"
+      aria-describedby="privacy-copy"
+    >
+      <div class="row-between head">
+        <div class="row">
+          <div class="lock" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 id="privacy-title" class="title">Transparencia y sesión efímera</h2>
+            <p class="subtitle">Cómo funciona Vinil06 antes de activar tu tablero</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="privacy-copy" class="copy">
+        <p>
+          <strong>Vinil06 acompañará la sesión abierta de Spotify del anfitrión</strong>
+          únicamente para coordinar las mecánicas del juego (sorteo, tiempos y turnos).
+          La reproducción la haces tú en tu app o bocina.
+        </p>
+        <p>
+          <strong>No se copian, guardan, exportan ni transmiten</strong> datos de la cuenta,
+          correo, historial, playlists ni información personal. No hay OAuth ni llamadas
+          a la API de Spotify.
+        </p>
+        <p>
+          Toda la caché y el estado de la partida viven solo en memoria temporal y
+          <strong>se borran automáticamente al cerrar la pestaña</strong>.
+          Los apodos y códigos de sala tampoco se escriben en disco.
+        </p>
+      </div>
+
+      <div class="actions">
+        <button #acceptButton type="button" class="btn btn-primary btn-block" (click)="accept.emit()">
+          Aceptar y activar tablero
+        </button>
+        <button type="button" class="btn btn-ghost btn-block" (click)="manual.emit()">
+          Usar solo como tablero manual
+        </button>
+      </div>
+
+      <p class="fine">
+        Puedes volver al inicio con «Salir de la sala»; eso limpia la memoria al instante.
+      </p>
+    </section>
+  </div>
+}

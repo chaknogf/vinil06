@@ -1,0 +1,135 @@
+:host {
+  display: block;
+}
+
+.board {
+  border-radius: 16px;
+  padding: 13px 14px;
+}
+
+.head {
+  margin-bottom: 9px;
+}
+
+.board-title {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+}
+
+.board-caption {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.item {
+  padding: 7px 9px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid transparent;
+}
+
+.item-me {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.item-first {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.identity {
+  min-width: 0;
+}
+
+.medal {
+  width: 20px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.avatar {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.name {
+  font-size: 12px;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.item-me .name {
+  color: #fff;
+}
+
+.tag {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 3px;
+}
+
+.numbers {
+  flex: 0 0 auto;
+}
+
+.delta {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 900;
+  color: #99f6e4;
+  background: rgba(20, 184, 166, 0.16);
+}
+
+.delta-first {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.22);
+}
+
+.delta-zero {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.score {
+  width: 58px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 900;
+  color: #fcd34d;
+}
+
+.empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 10px 0 2px;
+}

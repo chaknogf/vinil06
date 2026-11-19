@@ -1,0 +1,149 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.karaoke-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  border-color: rgba(251, 191, 36, 0.28);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(251, 191, 36, 0.12), transparent 55%),
+    var(--surface);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  animation: resultPop 300ms var(--ease) both;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.head .row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.disc {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 50%;
+  background: repeating-radial-gradient(
+    circle at center,
+    #090b10 0px,
+    #090b10 2px,
+    #1e293b 3px,
+    #090b10 4px
+  );
+  border: 2px solid #fbbf24;
+  animation: spinVinyl var(--spin-duration) linear infinite;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.draw-chips {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.chip {
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #c4b5fd;
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.chip-amber {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.cover {
+  width: 78px;
+  height: 78px;
+  flex: 0 0 78px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+
+.song-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.song-title {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #f8fafc;
+  line-height: 1.2;
+}
+
+.song-artist {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+}
+
+.singer {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: #fcd34d;
+}
+
+.challenge {
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+}
+
+.challenge p {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #e2e8f0;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+
+@media (min-width: 480px) {
+  .actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disc,
+  .karaoke-card {
+    animation: none;
+  }
+}

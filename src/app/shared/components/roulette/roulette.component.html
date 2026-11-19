@@ -1,0 +1,43 @@
+<section class="glass-panel roulette" aria-label="Ruleta de sorteo">
+  <div class="row-between head">
+    <h2 class="section-title">{{ title() }}</h2>
+    @if (spinning()) {
+      <span class="badge badge-accent"><span class="dot"></span> Girando</span>
+    } @else if (draw()) {
+      <span class="badge badge-indigo">Sorteo listo</span>
+    }
+  </div>
+
+  <div class="wheel-area">
+    <div class="needle" aria-hidden="true"></div>
+    <div
+      class="wheel"
+      [class.wheel-spinning]="spinning()"
+      [style.transform]="'rotate(' + rotation() + 'deg)'"
+      aria-hidden="true"
+    >
+      <div class="wheel-core"></div>
+    </div>
+    <div class="wheel-readout">
+      <span class="wheel-genre truncate">{{ draw()?.genre ?? 'Vinil06' }}</span>
+      <span class="wheel-decade">{{ draw()?.decade ?? 'Gira para sortear' }}</span>
+    </div>
+  </div>
+
+  <div class="chips">
+    <div class="chip">
+      <span class="chip-label">Género</span>
+      <span class="chip-value truncate">{{ draw()?.genre ?? '—' }}</span>
+    </div>
+    <div class="chip">
+      <span class="chip-label">Año</span>
+      <span class="chip-value truncate">{{ draw()?.decade ?? '—' }}</span>
+    </div>
+    @if (showKaraokeDetails()) {
+      <div class="chip chip-wide">
+        <span class="chip-label">Canción / Turno</span>
+        <span class="chip-value truncate">{{ draw()?.song }} · {{ draw()?.singer }}</span>
+      </div>
+    }
+  </div>
+</section>

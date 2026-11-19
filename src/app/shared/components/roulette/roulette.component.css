@@ -1,0 +1,147 @@
+:host {
+  display: block;
+}
+
+.roulette {
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.head {
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e2e8f0;
+}
+
+.wheel-area {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+}
+
+.needle {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 18px solid #fbbf24;
+  z-index: 4;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+.wheel {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    #10b981 0deg 45deg,
+    #0f172a 45deg 90deg,
+    #6366f1 90deg 135deg,
+    #0f172a 135deg 180deg,
+    #f59e0b 180deg 225deg,
+    #0f172a 225deg 270deg,
+    #ec4899 270deg 315deg,
+    #0f172a 315deg 360deg
+  );
+  border: 4px solid #1e293b;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(255, 255, 255, 0.08);
+  transition: transform 2.3s cubic-bezier(0.12, 0.72, 0.12, 1);
+  will-change: transform;
+}
+
+.wheel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    transparent 0deg 44deg,
+    rgba(255, 255, 255, 0.16) 44deg 45deg
+  );
+  pointer-events: none;
+}
+
+.wheel-core {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: #0b0d14;
+  border: 3px solid #34d399;
+  box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.12);
+}
+
+.wheel-readout {
+  position: relative;
+  z-index: 5;
+  width: 150px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.wheel-genre {
+  font-size: 12px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 1px 4px #000;
+}
+
+.wheel-decade {
+  font-size: 10px;
+  font-weight: 800;
+  color: #6ee7b7;
+  text-shadow: 0 1px 4px #000;
+}
+
+.chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  min-width: 0;
+}
+
+.chip-wide {
+  grid-column: 1 / -1;
+}
+
+.chip-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #a5b4fc;
+}
+
+.chip-value {
+  font-size: 12px;
+  font-weight: 800;
+  color: #f8fafc;
+}

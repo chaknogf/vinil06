@@ -1,0 +1,34 @@
+<section
+  class="glass-panel timer-panel"
+  [class.urgent-pulse]="urgent()"
+  [class.urgent-border]="urgent()"
+  aria-live="off"
+>
+  <div class="row-between">
+    <div class="row meta">
+      <span
+        class="phase-pill"
+        [class.pill-emerald]="tone() === 'emerald'"
+        [class.pill-amber]="tone() === 'amber'"
+        [class.pill-rose]="tone() === 'rose'"
+      >{{ label() }}</span>
+      <span class="hint truncate">{{ hint() }}</span>
+    </div>
+    <span
+      class="readout tabular"
+      [class.text-emerald]="tone() === 'emerald'"
+      [class.text-amber]="tone() === 'amber'"
+      [class.text-rose]="tone() === 'rose'"
+    >{{ seconds() }}s</span>
+  </div>
+
+  <div class="track" role="progressbar" [attr.aria-valuenow]="percent()" aria-valuemin="0" aria-valuemax="100">
+    <div
+      class="fill"
+      [class.fill-emerald]="tone() === 'emerald'"
+      [class.fill-amber]="tone() === 'amber'"
+      [class.fill-rose]="tone() === 'rose'"
+      [style.transform]="'scaleX(' + progress() + ')'"
+    ></div>
+  </div>
+</section>

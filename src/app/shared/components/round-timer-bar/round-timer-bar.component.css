@@ -1,0 +1,103 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.timer-card {
+  padding: 0.65rem 0.8rem;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: var(--shadow-1);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+.timer-card.is-listen {
+  border-color: rgba(56, 189, 248, 0.38);
+}
+
+.timer-card.is-flip {
+  border-color: rgba(168, 85, 247, 0.48);
+}
+
+.timer-card.is-karaoke {
+  border-color: rgba(251, 191, 36, 0.42);
+}
+
+.timer-card.is-urgent {
+  border-color: rgba(244, 63, 94, 0.85);
+  box-shadow: 0 0 24px rgba(244, 63, 94, 0.22);
+  animation: pulseUrgent var(--urgent-duration) ease-in-out infinite alternate;
+}
+
+.timer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.timer-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  color: #cbd5e1;
+}
+
+.timer-value {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.is-listen .timer-value {
+  color: var(--cyan);
+}
+
+.is-flip .timer-value {
+  color: #c4b5fd;
+}
+
+.is-karaoke .timer-value {
+  color: #fcd34d;
+}
+
+.is-urgent .timer-value {
+  color: #fb7185;
+}
+
+.timer-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.timer-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  will-change: transform;
+}
+
+.is-flip .timer-fill {
+  background: linear-gradient(90deg, #a855f7, #f59e0b);
+}
+
+.is-karaoke .timer-fill {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.is-urgent .timer-fill {
+  background: linear-gradient(90deg, #f43f5e, #fb923c);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-card.is-urgent {
+    animation: none;
+  }
+}

@@ -1,0 +1,23 @@
+<section
+  class="timer-card"
+  [class.is-listen]="variant() === 'listen'"
+  [class.is-flip]="variant() === 'flip'"
+  [class.is-karaoke]="variant() === 'karaoke'"
+  [class.is-urgent]="urgent()"
+  aria-live="off"
+>
+  <div class="timer-row">
+    <span class="timer-label">{{ label() }}</span>
+    <span class="timer-value tabular">{{ seconds() }}s</span>
+  </div>
+
+  <div
+    class="timer-track"
+    role="progressbar"
+    [attr.aria-valuenow]="percent()"
+    aria-valuemin="0"
+    aria-valuemax="100"
+  >
+    <div class="timer-fill" [style.transform]="'scaleX(' + progress() + ')'"></div>
+  </div>
+</section>

@@ -1,0 +1,67 @@
+<section class="glass-panel karaoke-card" aria-label="Turno de karaoke ruleta rusa">
+  <header class="head">
+    <div class="row">
+      <span class="disc" aria-hidden="true"></span>
+      <div>
+        <span class="eyebrow">Ruleta Rusa</span>
+        <h2 class="title">Karaoke en curso</h2>
+      </div>
+    </div>
+    <div class="draw-chips">
+      @if (genre()) {
+        <span class="chip">{{ genre() }}</span>
+      }
+      @if (year()) {
+        <span class="chip chip-amber">{{ year() }}</span>
+      }
+    </div>
+  </header>
+
+  <div class="song-row">
+    <div class="cover">
+      <app-album-art
+        [palette]="turn().track.palette"
+        [motif]="turn().track.motif"
+        [uid]="'karaoke_' + turn().track.id"
+        [src]="turn().track.cover ?? ''"
+      />
+    </div>
+    <div class="song-info">
+      <strong class="song-title">{{ turn().track.title }}</strong>
+      <span class="song-artist">{{ turn().track.artist }}</span>
+      <span class="singer">Turno de <b>{{ turn().singerName }}</b></span>
+    </div>
+  </div>
+
+  <div class="challenge">
+    <span class="eyebrow">Reto de canto</span>
+    <p>{{ turn().challenge }}</p>
+  </div>
+
+  <app-round-timer-bar
+    [durationMs]="turn().durationMs"
+    [startedAt]="startedAt()"
+    [clockOffset]="clockOffset()"
+    [variant]="'karaoke'"
+    [label]="'TURNO KARAOKE · CANTA YA'"
+    [active]="active()"
+  />
+
+  <div class="actions">
+    <button
+      type="button"
+      class="btn btn-amber"
+      [disabled]="!canUseWildcard()"
+      (click)="wildcard.emit()"
+    >
+      @if (turn().wildcardUsed) {
+        Comodín usado
+      } @else {
+        Usar comodín · 1 por partida
+      }
+    </button>
+    <button type="button" class="btn btn-primary" [disabled]="!canInteract()" (click)="done.emit()">
+      Terminé mi turno
+    </button>
+  </div>
+</section>

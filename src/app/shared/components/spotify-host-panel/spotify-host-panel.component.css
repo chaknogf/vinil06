@@ -1,0 +1,148 @@
+:host {
+  display: block;
+}
+
+.spotify-panel {
+  border-radius: 16px;
+  padding: 13px 14px;
+  border-color: rgba(30, 215, 96, 0.28);
+}
+
+.spotify-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 0.7rem;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 60%;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.status-chip.is-ok {
+  color: #6ee7b7;
+  background: rgba(30, 215, 96, 0.12);
+  border-color: rgba(30, 215, 96, 0.32);
+}
+
+.status-chip.is-warn {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.spotify-track {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+
+.spotify-cover {
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.spotify-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.spotify-meta strong {
+  font-size: 13px;
+}
+
+.spotify-meta small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.connected-row,
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.btn-spotify {
+  color: #04120d;
+  background: #1ed760;
+  font-weight: 900;
+}
+
+.btn-spotify:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.warning {
+  margin-top: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.09);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+}
+
+.warning p,
+.hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #fde68a;
+}
+
+.hint {
+  margin-top: 0.7rem;
+  color: var(--text-dim);
+}
+
+.hint code {
+  color: var(--indigo);
+}
+
+.text-btn {
+  align-self: flex-start;
+  min-height: 32px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #6ee7b7;
+}
+
+.warning .text-btn {
+  color: #fcd34d;
+}
+
+.text-btn:hover {
+  filter: brightness(1.15);
+}

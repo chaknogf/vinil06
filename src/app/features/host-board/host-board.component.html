@@ -1,0 +1,139 @@
+<div class="app-column host-column">
+  <header class="glass-panel host-header">
+    <div class="row-between">
+      <div class="row head-left">
+        <span class="badge badge-accent"><span class="dot"></span> #{{ state().roomCode }}</span>
+        <span class="mode-label">{{ modeLabel() }}</span>
+      </div>
+      <div class="row controls">
+        <button type="button" class="icon-btn" [attr.aria-label]="audio.enabled() ? 'Silenciar' : 'Activar sonido'" (click)="audio.toggle()">
+          @if (audio.enabled()) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" />
+            </svg>
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6" />
+            </svg>
+          }
+        </button>
+        <button type="button" class="privacy-btn" (click)="showPrivacy()">Privacidad</button>
+        <button type="button" class="privacy-btn danger" (click)="exit()">Salir</button>
+      </div>
+    </div>
+
+    <div class="row-between sub-row">
+      <div class="row">
+        <span class="phase-chip">{{ phaseLabel() }}</span>
+        <span class="round tabular">Ronda {{ state().roundIndex + 1 }} / {{ state().totalRounds }}</span>
+      </div>
+      <button type="button" class="invite-btn" (click)="copyCode()">
+        {{ copied() ? '¡Copiado!' : 'Copiar invitación' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="segmented mobile-tabs">
+    <button type="button" [class.is-active]="view() === 'control'" (click)="view.set('control')">Control</button>
+    <button type="button" [class.is-active]="view() === 'cards'" (click)="view.set('cards')">Mis cartas</button>
+  </div>
+
+  <div class="host-layout">
+    <section class="control-stack" [class.mobile-hidden]="view() === 'cards'">
+      <app-roulette
+        [spinning]="phase() === 'SPINNING'"
+        [draw]="state().draw"
+        [mode]="state().mode"
+      />
+
+      @if (spotifyTrack()) {
+        <app-spotify-host-panel [track]="spotifyTrack()" class="float-in" />
+      }
+
+      @if (phase() === 'LOBBY') {
+        <section class="glass-panel hint-panel float-in">
+          <p class="hint-title">Todo listo para empezar</p>
+          <p class="hint-copy">Comparte <strong>#{{ state().roomCode }}</strong> o el enlace copiado. El sorteo elige género y década antes de cada ronda.</p>
+        </section>
+      }
+
+      @if (phase() === 'KARAOKE_TURN' && state().karaoke; as turn) {
+        <app-karaoke-roulette-card
+          [turn]="turn"
+          [genre]="state().draw?.genre ?? ''"
+          [year]="state().draw?.decade ?? null"
+          [startedAt]="state().phaseStartedAt"
+          [clockOffset]="0"
+          [canInteract]="false"
+          [active]="true"
+        />
+        <div class="action-grid">
+          <button type="button" class="btn btn-primary" (click)="session.karaokeDone(true)">
+            ✓ Cantó {{ turn.wildcardUsed ? '(+1)' : '(+2)' }}
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="session.karaokeDone(false)">Pasar turno (0)</button>
+        </div>
+      }
+
+      @if (state().manual && (phase() === 'LISTEN_8S' || phase() === 'FLIP_6S')) {
+        <div class="action-grid manual">
+          @if (phase() === 'LISTEN_8S') {
+            <button type="button" class="btn btn-ghost" (click)="session.skipListen()">Revelar cartas ahora</button>
+          }
+          @if (phase() === 'FLIP_6S') {
+            <button type="button" class="btn btn-ghost" (click)="session.closeRound()">Cerrar ronda ahora</button>
+          }
+        </div>
+      }
+
+      @if (phase() === 'ROUND_RESULT') {
+        <section class="glass-panel result-panel float-in">
+          <p class="result-title">Ronda cerrada</p>
+          <p class="result-copy">Puntos asignados por orden de llegada: +2 al primero, +1 al resto de aciertos.</p>
+        </section>
+      }
+
+      @if (phase() !== 'PODIUM') {
+        <app-leaderboard-panel
+          [players]="state().players"
+          [results]="state().results"
+          [highlightId]="localPlayerId()"
+        />
+      } @else {
+        <app-podium
+          [players]="state().players"
+          title="¡Partida final!"
+          subtitle="Marcador final tras 12 rondas del mismo tablero."
+          actionLabel="Limpiar memoria y jugar otra"
+          [showAction]="true"
+          (newGame)="session.advance()"
+        />
+      }
+
+      <button
+        type="button"
+        class="btn btn-primary btn-block main-action"
+        [disabled]="!canAdvance()"
+        (click)="mainAction()"
+      >
+        {{ actionLabel() }}
+      </button>
+    </section>
+
+    <section class="cards-stack" [class.mobile-hidden]="view() === 'control'">
+      @if (localPlayerId(); as id) {
+        <app-player-card
+          [state]="state()"
+          [clientId]="id"
+          [clockOffset]="0"
+          [canInteract]="true"
+        />
+      } @else {
+        <section class="glass-panel hint-panel">
+          <p class="hint-title">Tablero de control</p>
+          <p class="hint-copy">No te incluiste como jugador. Abre otra pestaña con el código #{{ state().roomCode }} para jugar, o crea una sala con «Incluirme como jugador».</p>
+        </section>
+      }
+    </section>
+  </div>
+</div>

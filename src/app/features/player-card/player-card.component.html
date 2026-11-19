@@ -1,0 +1,18 @@
+<div class="app-column deck-page">
+  <app-vinyl-deck-arena />
+
+  @if (phase() === 'PODIUM') {
+    <app-podium
+      [players]="state().players"
+      [title]="podiumTitle()"
+      [subtitle]="podiumSubtitle()"
+      [showAction]="false"
+    />
+  } @else if (phase() !== 'LOBBY') {
+    <app-leaderboard-panel
+      [players]="state().players"
+      [results]="state().results"
+      [highlightId]="clientId()"
+    />
+  }
+</div>

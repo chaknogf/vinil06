@@ -1,0 +1,64 @@
+<div class="cards-grid" [class.is-revealed]="flipped()" aria-label="Cuatro cartas de la ronda">
+  @for (card of options(); track card.id; let idx = $index) {
+    <button
+      type="button"
+      class="vinyl-card"
+      [class.is-flipped]="flipped()"
+      [class.is-locked]="locked()"
+      [class.is-selected]="selectedId() === card.id"
+      [class.is-correct]="phase() === 'ROUND_RESULT' && correctId() === card.id"
+      [class.is-wrong]="
+        phase() === 'ROUND_RESULT' && selectedId() === card.id && correctId() !== card.id
+      "
+      [disabled]="!canAnswer()"
+      [style.--flip-delay.ms]="idx * 65"
+      [attr.aria-label]="labelFor(card, idx)"
+      (click)="onSelect(card.id)"
+    >
+      <div class="card-inner">
+        <!-- Dorso: naipe con tocadiscos y vinilo girando (8s de escucha) -->
+        <div class="card-face card-back" [class.is-locked]="locked()">
+          <div class="card-corner top-left">0{{ idx + 1 }}</div>
+
+          <div class="turntable-stage" aria-hidden="true">
+            <div class="platter">
+              <div class="vinyl-disc" [class.is-spinning]="spinning()">
+                <div class="vinyl-grooves"></div>
+                <div class="vinyl-label">V06</div>
+              </div>
+            </div>
+            <div class="tonearm" [class.is-playing]="spinning()"></div>
+          </div>
+
+          <span class="back-caption" [class.caption-live]="spinning()">{{ backLabel() }}</span>
+          <div class="card-corner bottom-right">VINIL06</div>
+        </div>
+
+        <!-- Frente: portada, año, canción y artista (6s de respuesta) -->
+        <div class="card-face card-front">
+          <div class="cover-wrap">
+            <img
+              [src]="coverSrc(card)"
+              [alt]="card.title + ' - ' + card.artist"
+              loading="eager"
+              (error)="onCoverError(card.id)"
+            />
+            @if (card.year) {
+              <span class="year-tag">{{ card.year }}</span>
+            }
+            @if (phase() === 'ROUND_RESULT' && correctId() === card.id) {
+              <span class="result-badge badge-correct">Correcta</span>
+            } @else if (phase() === 'ROUND_RESULT' && selectedId() === card.id) {
+              <span class="result-badge badge-wrong">Tu elección</span>
+            }
+          </div>
+
+          <div class="track-info">
+            <strong class="track-title">{{ card.title }}</strong>
+            <span class="track-artist">{{ card.artist }}</span>
+          </div>
+        </div>
+      </div>
+    </button>
+  }
+</div>

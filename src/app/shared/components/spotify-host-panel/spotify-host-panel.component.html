@@ -1,0 +1,77 @@
+<section class="glass-panel spotify-panel" aria-label="Audio del anfitrión">
+  <div class="spotify-head">
+    <span class="eyebrow">Anfitrión · audio</span>
+    <span
+      class="status-chip"
+      [class.is-ok]="spotify.status() === 'connected'"
+      [class.is-warn]="needsAttention()"
+    >
+      <span class="status-dot" aria-hidden="true"></span>
+      {{ statusLabel() }}
+    </span>
+  </div>
+
+  @if (track(); as current) {
+    <div class="spotify-track">
+      <span class="spotify-cover" aria-hidden="true">
+        <app-album-art
+          [palette]="current.palette"
+          [motif]="current.motif"
+          [src]="current.cover ?? ''"
+          uid="spotify-host"
+        />
+      </span>
+      <span class="spotify-meta">
+        <strong class="truncate">{{ current.title }}</strong>
+        <small class="truncate">{{ current.artist }}</small>
+      </span>
+    </div>
+  }
+
+  @if (spotify.status() === 'connected') {
+    <div class="connected-row">
+      <span>Play automático al arrancar los 8s · pausa al voltear.</span>
+      <button type="button" class="text-btn" (click)="spotify.disconnect()">Desconectar</button>
+    </div>
+  } @else {
+    <div class="actions">
+      @if (spotify.configured) {
+        <button
+          type="button"
+          class="btn btn-spotify btn-block"
+          [disabled]="spotify.status() === 'connecting'"
+          (click)="spotify.connect()"
+        >
+          Conectar Spotify Premium
+        </button>
+      }
+      @if (deepLink()) {
+        <a
+          class="btn btn-ghost btn-block"
+          [href]="deepLink()"
+          target="_blank"
+          rel="noopener noreferrer"
+          [attr.aria-label]="
+            'Abrir ' + (track()?.title ?? '') + ' de ' + (track()?.artist ?? '') + ' en Spotify (pestaña nueva)'
+          "
+        >
+          Abrir en Spotify
+        </a>
+      }
+    </div>
+  }
+
+  @if (needsAttention()) {
+    <div class="warning" role="status">
+      <p>{{ spotify.message() || 'Spotify no está disponible.' }}</p>
+      <button type="button" class="text-btn" (click)="dismiss()">Seguir en manual</button>
+    </div>
+  }
+
+  @if (spotify.status() === 'not-configured') {
+    <p class="hint">
+      Sin <code>spotify.clientId</code> usamos el enlace a Spotify y el tablero manual.
+      Configuralo para habilitar el play automático.
+    </p>
+  }
+</section>

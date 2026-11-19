@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Ruleta & Tocadiscos · Vista del Jugador</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Fuente Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #090b10;
+      --grid-color: rgba(255, 255, 255, 0.035);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      background-image:
+        radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.12), transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.10), transparent 45%),
+        linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+      color: #f8fafc;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* Glassmorphism panels */
+    .glass-panel {
+      background: rgba(17, 21, 32, 0.78);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* Perspectiva y volteo 3D para las 4 cartas de naipe */
+    .card-scene {
+      perspective: 1100px;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+      transform-style: preserve-3d;
+    }
+
+    .card-inner.is-flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 1.15rem;
+      overflow: hidden;
+    }
+
+    .card-front {
+      transform: rotateY(180deg);
+    }
+
+    /* Animación de giro del disco de vinilo en la cara trasera */
+    @keyframes spinVinyl {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .vinyl-spinning {
+      animation: spinVinyl 3.2s linear infinite;
+      transform-origin: center;
+    }
+
+    .vinyl-paused {
+      animation-play-state: paused;
+    }
+
+    /* Pulso de urgencia en los últimos 2 segundos */
+    @keyframes pulseUrgent {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+
+    .urgent-pulse {
+      animation: pulseUrgent 0.45s ease-in-out infinite;
+    }
+
+    /* Micro-animación al tocar carta */
+    .card-tap:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-between px-3 py-3 sm:px-6 sm:py-5">
+
+  <!-- Contenedor principal Mobile-First -->
+  <div class="w-full max-w-md flex flex-col gap-3 my-auto">
+
+    <!-- 1. CABECERA COMPACTA DE SALA -->
+    <header class="glass-panel rounded-2xl px-3.5 py-2.5 shadow-xl flex flex-col gap-2">
+      <div class="flex items-center justify-between gap-2">
+        <!-- Código de sala + Indicador de Ronda -->
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-xs font-extrabold tracking-wider">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            #ROCK88
+          </span>
+          <span id="round-counter" class="text-xs sm:text-sm font-bold text-slate-200">
+            Ronda 1 / 12
+          </span>
+        </div>
+
+        <!-- Controles rápidos: Audio sintetizado + Aviso Efímero -->
+        <div class="flex items-center gap-1.5">
+          <button id="btn-sound-toggle" type="button" title="Activar/Silenciar pulso sonoro de prueba"
+            class="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 transition flex items-center gap-1 text-xs font-medium">
+            <svg id="icon-sound-on" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14"/>
+            </svg>
+            <svg id="icon-sound-off" class="w-4 h-4 text-slate-400 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6"/>
+            </svg>
+          </button>
+
+          <button id="btn-privacy-info" type="button"
+            class="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-medium text-slate-300 transition">
+            Sesión efímera
+          </button>
+        </div>
+      </div>
+
+      <!-- Segunda fila: Badge de Sorteo (Género · Año) + Puntaje acumulado del jugador -->
+      <div class="flex items-center justify-between gap-2 pt-1 border-t border-white/5">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Sorteo:</span>
+          <span id="draw-badge" class="truncate px-2.5 py-0.5 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-bold">
+            Pop / Rock · 2000s
+          </span>
+        </div>
+
+        <div class="flex items-center gap-1.5 shrink-0 bg-amber-500/15 border border-amber-400/30 px-2.5 py-0.5 rounded-lg">
+          <span class="text-[11px] text-amber-200/80 font-medium">Tú:</span>
+          <span id="player-score-badge" class="text-sm font-black text-amber-300">0 pts</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. PANEL DE CRONÓMETRO Y ESTADO DE FASE -->
+    <section id="timer-panel" class="glass-panel rounded-2xl px-4 py-3 shadow-xl transition-all duration-300">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <div class="flex items-center gap-2">
+          <span id="phase-pill" class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-slate-700/80 text-slate-200">
+            Listo para jugar
+          </span>
+          <span id="phase-hint" class="text-xs text-slate-300 font-medium truncate">
+            Pulsa iniciar para escuchar
+          </span>
+        </div>
+        <div id="timer-readout" class="text-xl sm:text-2xl font-black tabular-nums tracking-tight text-slate-100">
+          8.0s
+        </div>
+      </div>
+
+      <!-- Barra de progreso fluida -->
+      <div class="w-full h-2.5 bg-slate-800/90 rounded-full overflow-hidden p-0.5 border border-white/5">
+        <div id="timer-bar" class="h-full w-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300 transition-[width] duration-75 ease-linear"></div>
+      </div>
+    </section>
+
+    <!-- 3. ÁREA CENTRAL: GRID 2x2 DE CARTAS DE NAIPE / TOCADISCOS -->
+    <main id="cards-grid" class="grid grid-cols-2 gap-3 my-0.5">
+      <!-- Se renderizan dinámicamente las 4 cartas -->
+    </main>
+
+    <!-- 4. BANNER DE FEEDBACK DE RONDA + MINI RANKING EN VIVO -->
+    <section id="result-section" class="hidden flex-col gap-2.5">
+      <!-- Tarjeta de resultado de la ronda -->
+      <div id="round-feedback-card" class="glass-panel rounded-2xl p-3.5 border transition-all">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <p id="feedback-title" class="text-base font-black tracking-tight text-emerald-300">
+              ¡+2 PTS! ¡Fuiste el más rápido!
+            </p>
+            <p id="feedback-subtitle" class="text-xs text-slate-300 mt-0.5">
+              Respondiste en 1.42s antes que toda la sala.
+            </p>
+          </div>
+          <span id="feedback-points-pill" class="px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 shrink-0">
+            +2 PTS
+          </span>
+        </div>
+      </div>
+
+      <!-- Mini Tablero de Posiciones (Ranking en vivo de los 4 jugadores) -->
+      <div class="glass-panel rounded-2xl p-3.5">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xs font-extrabold uppercase tracking-wider text-slate-300">
+            Tablero de Posiciones · Sala #ROCK88
+          </h2>
+          <span class="text-[11px] text-slate-400">+2 1ro · +1 Acierto</span>
+        </div>
+        <div id="leaderboard-list" class="flex flex-col gap-1.5">
+          <!-- Filas de ranking -->
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. BOTÓN DE ACCIÓN PRINCIPAL (INICIAR / SIGUIENTE RONDA) -->
+    <div id="action-bar" class="pt-0.5">
+      <button id="btn-main-action" type="button"
+        class="w-full py-3.5 px-5 rounded-2xl font-extrabold text-sm sm:text-base tracking-wide text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-400 hover:brightness-105 active:scale-[0.99] transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <span id="btn-main-label">Iniciar Ronda 1</span>
+      </button>
+    </div>
+
+    <!-- 6. PANTALLA DE PODIO FINAL (AL COMPLETAR LAS 12 RONDAS) -->
+    <section id="final-podium-section" class="hidden glass-panel rounded-3xl p-5 text-center flex-col gap-4 shadow-2xl border border-amber-400/25">
+      <div>
+        <span class="inline-block px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-extrabold uppercase tracking-wider mb-2">
+          Partida Finalizada · 12 Rondas
+        </span>
+        <h2 id="final-headline" class="text-2xl font-black text-white tracking-tight">
+          ¡Resultados Finales!
+        </h2>
+        <p id="final-subheadline" class="text-xs text-slate-300 mt-1">
+          Así quedó el marcador tras las 12 canciones sorteadas.
+        </p>
+      </div>
+
+      <div id="final-ranking-list" class="flex flex-col gap-2 text-left">
+        <!-- Podio completo -->
+      </div>
+
+      <button id="btn-restart-game" type="button"
+        class="w-full py-3.5 px-5 rounded-2xl font-extrabold text-sm text-slate-950 bg-gradient-to-r from-amber-300 to-emerald-300 hover:brightness-105 active:scale-[0.99] transition shadow-lg">
+        Jugar otra partida (Limpiar memoria)
+      </button>
+    </section>
+
+  </div>
+
+  <!-- MODAL DE AVISO DE PRIVACIDAD / SESIÓN EFÍMERA -->
+  <div id="privacy-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+    <div class="glass-panel w-full max-w-md rounded-3xl p-5 sm:p-6 border border-white/15 shadow-2xl flex flex-col gap-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-2xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-base font-extrabold text-white">Transparencia y Sesión Efímera</h3>
+            <p class="text-xs text-slate-400">Cómo funciona esta sala sin guardar datos</p>
+          </div>
+        </div>
+        <button id="btn-close-modal-x" type="button" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10">
+          ✕
+        </button>
+      </div>
+
+      <div class="text-xs sm:text-sm text-slate-300 space-y-2.5 leading-relaxed bg-white/[0.03] p-3.5 rounded-2xl border border-white/5">
+        <p>
+          <strong class="text-white">• Sin copia ni guardado de datos:</strong> No copiamos, almacenamos ni enviamos contraseñas, correos, playlists ni datos personales de ninguna cuenta.
+        </p>
+        <p>
+          <strong class="text-white">• Solo el anfitrión usa su Spotify:</strong> Tú participas únicamente con el código de sala (<span class="text-emerald-300 font-semibold">#ROCK88</span>) desde tu cartón/cartas táctiles.
+        </p>
+        <p>
+          <strong class="text-white">• Memoria temporal:</strong> Todo el estado de la partida vive solo en la memoria de esta pestaña y <strong class="text-emerald-300">se borra automáticamente al cerrarla</strong>.
+        </p>
+      </div>
+
+      <button id="btn-accept-modal" type="button"
+        class="w-full py-3 rounded-2xl font-bold text-sm bg-emerald-400 text-slate-950 hover:bg-emerald-300 transition">
+        Entendido, volver al juego
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * MAZO DE 12 RONDAS REALES / RECONOCIBLES (ESPAÑOL E INGLÉS)
+     * Cada ronda incluye género/época sorteada y 4 opciones plausibles del mismo estilo.
+     */
+    const ROUNDS_DECK = [
+      {
+        genreYear: "Pop / Rock · 2000s",
+        bpm: 118,
+        options: [
+          { id: "r1_1", title: "Clocks", artist: "Coldplay", correct: true, palette: ["#0ea5e9", "#1e1b4b"] },
+          { id: "r1_2", title: "Somewhere Only We Know", artist: "Keane", correct: false, palette: ["#10b981", "#064e3b"] },
+          { id: "r1_3", title: "Chasing Cars", artist: "Snow Patrol", correct: false, palette: ["#6366f1", "#1e293b"] },
+          { id: "r1_4", title: "Mr. Brightside", artist: "The Killers", correct: false, palette: ["#f43f5e", "#31102f"] }
+        ]
+      },
+      {
+        genreYear: "Reggaetón Clásico · 2000s",
+        bpm: 96,
+        options: [
+          { id: "r2_1", title: "Gasolina", artist: "Daddy Yankee", correct: true, palette: ["#f97316", "#450a0a"] },
+          { id: "r2_2", title: "Dile", artist: "Don Omar", correct: false, palette: ["#eab308", "#422006"] },
+          { id: "r2_3", title: "Rakata", artist: "Wisin & Yandel", correct: false, palette: ["#ec4899", "#3b0764"] },
+          { id: "r2_4", title: "Baila Morena", artist: "Héctor & Tito", correct: false, palette: ["#ef4444", "#1f2937"] }
+        ]
+      },
+      {
+        genreYear: "Rock en Español · 90s",
+        bpm: 124,
+        options: [
+          { id: "r3_1", title: "De Música Ligera", artist: "Soda Stereo", correct: true, palette: ["#3b82f6", "#0f172a"] },
+          { id: "r3_2", title: "La Flaca", artist: "Jarabe de Palo", correct: false, palette: ["#f59e0b", "#451a03"] },
+          { id: "r3_3", title: "Lamento Boliviano", artist: "Enanitos Verdes", correct: false, palette: ["#14b8a6", "#042f2e"] },
+          { id: "r3_4", title: "Rayando el Sol", artist: "Maná", correct: false, palette: ["#8b5cf6", "#1e1b4b"] }
+        ]
+      },
+      {
+        genreYear: "Pop · 80s",
+        bpm: 117,
+        options: [
+          { id: "r4_1", title: "Billie Jean", artist: "Michael Jackson", correct: true, palette: ["#e11d48", "#090d16"] },
+          { id: "r4_2", title: "Take On Me", artist: "a-ha", correct: false, palette: ["#38bdf8", "#1e293b"] },
+          { id: "r4_3", title: "Like a Virgin", artist: "Madonna", correct: false, palette: ["#d946ef", "#2e1065"] },
+          { id: "r4_4", title: "Sweet Dreams", artist: "Eurythmics", correct: false, palette: ["#6366f1", "#172554"] }
+        ]
+      },
+      {
+        genreYear: "Pop Latino · 2010s",
+        bpm: 105,
+        options: [
+          { id: "r5_1", title: "La Bicicleta", artist: "Carlos Vives & Shakira", correct: true, palette: ["#10b981", "#064e3b"] },
+          { id: "r5_2", title: "Bailando", artist: "Enrique Iglesias", correct: false, palette: ["#f43f5e", "#4c0519"] },
+          { id: "r5_3", title: "Vivir Mi Vida", artist: "Marc Anthony", correct: false, palette: ["#f59e0b", "#451a03"] },
+          { id: "r5_4", title: "Despacito", artist: "Luis Fonsi & Daddy Yankee", correct: false, palette: ["#06b6d4", "#164e63"] }
+        ]
+      },
+      {
+        genreYear: "Pop / Dance · 2010s",
+        bpm: 128,
+        options: [
+          { id: "r6_1", title: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars", correct: true, palette: ["#eab308", "#3f2e05"] },
+          { id: "r6_2", title: "Get Lucky", artist: "Daft Punk", correct: false, palette: ["#f97316", "#27150c"] },
+          { id: "r6_3", title: "Can't Stop the Feeling!", artist: "Justin Timberlake", correct: false, palette: ["#0ea5e9", "#0c4a6e"] },
+          { id: "r6_4", title: "Happy", artist: "Pharrell Williams", correct: false, palette: ["#84cc16", "#1a2e05"] }
+        ]
+      },
+      {
+        genreYear: "Rock Clásico · 80s",
+        bpm: 112,
+        options: [
+          { id: "r7_1", title: "Livin' on a Prayer", artist: "Bon Jovi", correct: true, palette: ["#dc2626", "#1f1218"] },
+          { id: "r7_2", title: "Sweet Child O' Mine", artist: "Guns N' Roses", correct: false, palette: ["#d97706", "#291807"] },
+          { id: "r7_3", title: "Another One Bites the Dust", artist: "Queen", correct: false, palette: ["#7c3aed", "#1e1b4b"] },
+          { id: "r7_4", title: "Every Breath You Take", artist: "The Police", correct: false, palette: ["#2563eb", "#0f172a"] }
+        ]
+      },
+      {
+        genreYear: "Pop Urbano · 2020s",
+        bpm: 100,
+        options: [
+          { id: "r8_1", title: "Tití Me Preguntó", artist: "Bad Bunny", correct: true, palette: ["#ec4899", "#3b0764"] },
+          { id: "r8_2", title: "Provenza", artist: "Karol G", correct: false, palette: ["#14b8a6", "#042f2e"] },
+          { id: "r8_3", title: "Hawái", artist: "Maluma", correct: false, palette: ["#0284c7", "#082f49"] },
+          { id: "r8_4", title: "Pepas", artist: "Farruko", correct: false, palette: ["#f97316", "#431407"] }
+        ]
+      },
+      {
+        genreYear: "Pop / R&B · 2000s",
+        bpm: 99,
+        options: [
+          { id: "r9_1", title: "Crazy in Love", artist: "Beyoncé", correct: true, palette: ["#f59e0b", "#451a03"] },
+          { id: "r9_2", title: "Umbrella", artist: "Rihanna", correct: false, palette: ["#64748b", "#0f172a"] },
+          { id: "r9_3", title: "Hips Don't Lie", artist: "Shakira", correct: false, palette: ["#e11d48", "#4c0519"] },
+          { id: "r9_4", title: "Toxic", artist: "Britney Spears", correct: false, palette: ["#06b6d4", "#083344"] }
+        ]
+      },
+      {
+        genreYear: "Pop / Synth · 2020s",
+        bpm: 171,
+        options: [
+          { id: "r10_1", title: "Blinding Lights", artist: "The Weeknd", correct: true, palette: ["#ef4444", "#2a0808"] },
+          { id: "r10_2", title: "Levitating", artist: "Dua Lipa", correct: false, palette: ["#8b5cf6", "#2e1065"] },
+          { id: "r10_3", title: "As It Was", artist: "Harry Styles", correct: false, palette: ["#f43f5e", "#1e1b4b"] },
+          { id: "r10_4", title: "Save Your Tears", artist: "The Weeknd", correct: false, palette: ["#3b82f6", "#172554"] }
+        ]
+      },
+      {
+        genreYear: "Balada / Pop Español · 90s",
+        bpm: 92,
+        options: [
+          { id: "r11_1", title: "Corazón Partío", artist: "Alejandro Sanz", correct: true, palette: ["#d97706", "#311606"] },
+          { id: "r11_2", title: "La Incondicional", artist: "Luis Miguel", correct: false, palette: ["#1d4ed8", "#0f172a"] },
+          { id: "r11_3", title: "Experiencia Religiosa", artist: "Enrique Iglesias", correct: false, palette: ["#9333ea", "#270a3d"] },
+          { id: "r11_4", title: "Torero", artist: "Chayanne", correct: false, palette: ["#dc2626", "#3b0712"] }
+        ]
+      },
+      {
+        genreYear: "Rock Alternativo · 2000s",
+        bpm: 132,
+        options: [
+          { id: "r12_1", title: "Seven Nation Army", artist: "The White Stripes", correct: true, palette: ["#dc2626", "#09090b"] },
+          { id: "r12_2", title: "In the End", artist: "Linkin Park", correct: false, palette: ["#475569", "#0f172a"] },
+          { id: "r12_3", title: "Feel Good Inc.", artist: "Gorillaz", correct: false, palette: ["#10b981", "#064e3b"] },
+          { id: "r12_4", title: "Take Me Out", artist: "Franz Ferdinand", correct: false, palette: ["#ea580c", "#2c1104"] }
+        ]
+      }
+    ];
+
+    /**
+     * ESTADO VOLÁTIL EN MEMORIA DE LA PARTIDA
+     * Se limpia al reiniciar o al cerrar la pestaña (pagehide / beforeunload).
+     */
+    const LISTEN_DURATION_MS = 8000; // 8.0 segundos de escucha bloqueada
+    const ANSWER_DURATION_MS = 6000; // 6.0 segundos de volteo y respuesta
+
+    let gameState = {
+      roundIndex: 0, // 0 a 11 (12 rondas)
+      phase: "IDLE", // IDLE | LISTENING | ANSWERING | RESULT | FINISHED
+      soundEnabled: true,
+      shuffledOptions: [],
+      selectedOptionId: null,
+      userAnswerTimeMs: null,
+      phaseStartTime: 0,
+      rafId: null,
+      audioCtx: null,
+      beatIntervalId: null,
+      players: [
+        { id: "you", name: "Tú (Jugador)", isUser: true, score: 0, avatarColor: "from-emerald-400 to-teal-500" },
+        { id: "p2", name: "Ana", isUser: false, score: 0, avatarColor: "from-indigo-400 to-purple-500" },
+        { id: "p3", name: "Carlos", isUser: false, score: 0, avatarColor: "from-amber-400 to-orange-500" },
+        { id: "p4", name: "Sofía", isUser: false, score: 0, avatarColor: "from-pink-400 to-rose-500" }
+      ]
+    };
+
+    // Referencias DOM
+    const elRoundCounter = document.getElementById("round-counter");
+    const elDrawBadge = document.getElementById("draw-badge");
+    const elPlayerScoreBadge = document.getElementById("player-score-badge");
+    const elTimerPanel = document.getElementById("timer-panel");
+    const elPhasePill = document.getElementById("phase-pill");
+    const elPhaseHint = document.getElementById("phase-hint");
+    const elTimerReadout = document.getElementById("timer-readout");
+    const elTimerBar = document.getElementById("timer-bar");
+    const elCardsGrid = document.getElementById("cards-grid");
+    const elResultSection = document.getElementById("result-section");
+    const elFeedbackCard = document.getElementById("round-feedback-card");
+    const elFeedbackTitle = document.getElementById("feedback-title");
+    const elFeedbackSubtitle = document.getElementById("feedback-subtitle");
+    const elFeedbackPointsPill = document.getElementById("feedback-points-pill");
+    const elLeaderboardList = document.getElementById("leaderboard-list");
+    const elActionBar = document.getElementById("action-bar");
+    const elBtnMainAction = document.getElementById("btn-main-action");
+    const elBtnMainLabel = document.getElementById("btn-main-label");
+    const elFinalPodiumSection = document.getElementById("final-podium-section");
+    const elFinalHeadline = document.getElementById("final-headline");
+    const elFinalSubheadline = document.getElementById("final-subheadline");
+    const elFinalRankingList = document.getElementById("final-ranking-list");
+    const elBtnRestartGame = document.getElementById("btn-restart-game");
+    const elPrivacyModal = document.getElementById("privacy-modal");
+
+    /**
+     * Barajado aleatorio Fisher-Yates para que cada volteo tenga orden distinto
+     */
+    function shuffleArray(array) {
+      const copy = array.map(item => ({ ...item }));
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    /**
+     * Web Audio API: pulso rítmico sutil durante los 8s de escucha y tonos de alerta
+     */
+    function ensureAudioContext() {
+      if (!gameState.audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          gameState.audioCtx = new AudioContextClass();
+        }
+      }
+      if (gameState.audioCtx && gameState.audioCtx.state === "suspended") {
+        gameState.audioCtx.resume().catch(() => {});
+      }
+    }
+
+    function playTone(freq = 440, duration = 0.09, type = "sine", volume = 0.08) {
+      if (!gameState.soundEnabled) return;
+      try {
+        ensureAudioContext();
+        const ctx = gameState.audioCtx;
+        if (!ctx) return;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+        gain.gain.setValueAtTime(volume, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      } catch (e) {
+        // Ignorar si el navegador restringe audio
+      }
+    }
+
+    function startListeningBeat(bpm = 115) {
+      stopListeningBeat();
+      if (!gameState.soundEnabled) return;
+      const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63];
+      let step = 0;
+      const intervalMs = Math.max(260, Math.round((60 / bpm) * 1000));
+
+      const triggerNote = () => {
+        if (gameState.phase !== "LISTENING" || !gameState.soundEnabled) return;
+        const freq = notes[step % notes.length];
+        playTone(freq, 0.14, "triangle", 0.065);
+        step++;
+      };
+
+      triggerNote();
+      gameState.beatIntervalId = setInterval(triggerNote, intervalMs);
+    }
+
+    function stopListeningBeat() {
+      if (gameState.beatIntervalId) {
+        clearInterval(gameState.beatIntervalId);
+        gameState.beatIntervalId = null;
+      }
+    }
+
+    /**
+     * Genera el SVG de la portada tipo álbum vibrante para cada opción
+     */
+    function createAlbumArtSVG(option, index) {
+      const [c1, c2] = option.palette;
+      const shapes = [
+        `<circle cx="72" cy="28" r="24" fill="rgba(255,255,255,0.16)"/><circle cx="30" cy="70" r="18" fill="rgba(255,255,255,0.10)"/>`,
+        `<polygon points="50,14 86,82 14,82" fill="rgba(255,255,255,0.14)"/>`,
+        `<rect x="18" y="18" width="64" height="64" rx="16" transform="rotate(15 50 50)" fill="rgba(255,255,255,0.14)"/>`,
+        `<circle cx="50" cy="50" r="34" stroke="rgba(255,255,255,0.22)" stroke-width="6" fill="none"/><circle cx="50" cy="50" r="12" fill="rgba(255,255,255,0.25)"/>`
+      ];
+      return `
+        <svg viewBox="0 0 100 100" class="w-full h-full object-cover">
+          <defs>
+            <linearGradient id="grad_${option.id}_${index}" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="${c1}"/>
+              <stop offset="100%" stop-color="${c2}"/>
+            </linearGradient>
+          </defs>
+          <rect width="100" height="100" fill="url(#grad_${option.id}_${index})"/>
+          ${shapes[index % shapes.length]}
+          <circle cx="50" cy="50" r="8" fill="rgba(9,11,16,0.55)"/>
+          <circle cx="50" cy="50" r="2.5" fill="#ffffff"/>
+        </svg>
+      `;
+    }
+
+    /**
+     * Genera el dorso de carta de naipe con ilustración SVG de tocadiscos y disco de vinilo
+     */
+    function createTurntableBackSVG(isSpinning) {
+      return `
+        <svg viewBox="0 0 140 140" class="w-24 h-24 sm:w-28 sm:h-28 drop-shadow-md">
+          <!-- Base del tocadiscos -->
+          <rect x="12" y="14" width="116" height="112" rx="18" fill="#131826" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+          <!-- Plato / Disco de vinilo giratorio -->
+          <g class="${isSpinning ? 'vinyl-spinning' : 'vinyl-spinning vinyl-paused'}">
+            <circle cx="64" cy="70" r="42" fill="#090b10" stroke="#273043" stroke-width="2"/>
+            <circle cx="64" cy="70" r="34" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+            <circle cx="64" cy="70" r="26" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+            <circle cx="64" cy="70" r="18" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+            <!-- Etiqueta central del vinilo -->
+            <circle cx="64" cy="70" r="13" fill="#10b981"/>
+            <circle cx="64" cy="70" r="13" fill="url(#vinylShine)" opacity="0.35"/>
+            <!-- Marca visual para notar el giro -->
+            <path d="M64 57 A13 13 0 0 1 77 70" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="64" cy="70" r="3.2" fill="#090b10"/>
+          </g>
+          <!-- Pivote y brazo de lectura (tonearm) -->
+          <circle cx="111" cy="32" r="7" fill="#334155" stroke="#64748b" stroke-width="1.5"/>
+          <path d="M111 32 L106 68 L92 84" fill="none" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="87" y="81" width="8" height="5" rx="1.5" transform="rotate(-38 91 83.5)" fill="#34d399"/>
+          <!-- Luz piloto -->
+          <circle cx="25" cy="113" r="3" fill="${isSpinning ? '#34d399' : '#64748b'}"/>
+          <defs>
+            <linearGradient id="vinylShine" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#ffffff"/>
+              <stop offset="100%" stop-color="#000000"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      `;
+    }
+
+    /**
+     * Renderiza las 4 cartas en el grid 2x2
+     */
+    function renderCards() {
+      const currentRound = ROUNDS_DECK[gameState.roundIndex];
+      const optionsToRender = gameState.shuffledOptions.length === 4
+        ? gameState.shuffledOptions
+        : currentRound.options;
+
+      const isFlipped = gameState.phase === "ANSWERING" || gameState.phase === "RESULT";
+      const isSpinning = gameState.phase === "LISTENING";
+      const canClick = gameState.phase === "ANSWERING" && !gameState.selectedOptionId;
+
+      elCardsGrid.innerHTML = optionsToRender.map((opt, idx) => {
+        // Clases de estado al revelar resultados
+        let frontBorderClass = "border-white/12 bg-slate-900/90";
+        let badgeHtml = "";
+
+        if (gameState.phase === "RESULT") {
+          if (opt.correct) {
+            frontBorderClass = "border-emerald-400 bg-emerald-950/75 ring-2 ring-emerald-400/50";
+            badgeHtml = `<span class="px-2 py-0.5 rounded-md bg-emerald-500 text-slate-950 text-[10px] font-black uppercase">Correcta</span>`;
+          } else if (opt.id === gameState.selectedOptionId) {
+            frontBorderClass = "border-rose-400 bg-rose-950/75 ring-2 ring-rose-400/50";
+            badgeHtml = `<span class="px-2 py-0.5 rounded-md bg-rose-500 text-white text-[10px] font-black uppercase">Tu elección</span>`;
+          } else {
+            frontBorderClass = "border-white/5 bg-slate-900/55 opacity-60";
+          }
+        } else if (gameState.phase === "ANSWERING" && opt.id === gameState.selectedOptionId) {
+          frontBorderClass = "border-indigo-400 bg-indigo-950/70 ring-2 ring-indigo-400/50";
+        }
+
+        const backStatusLabel = gameState.phase === "LISTENING"
+          ? "ESCUCHANDO..."
+          : "BLOQUEADA";
+
+        const backBadgeClass = gameState.phase === "LISTENING"
+          ? "text-emerald-300 bg-emerald-500/15 border-emerald-400/30 animate-pulse"
+          : "text-slate-400 bg-white/5 border-white/10";
+
+        return `
+          <button
+            type="button"
+            data-option-id="${opt.id}"
+            ${canClick ? "" : "disabled"}
+            class="card-scene card-tap h-48 sm:h-52 w-full text-left focus:outline-none ${canClick ? 'cursor-pointer' : 'cursor-default'}"
+          >
+            <div class="card-inner ${isFlipped ? 'is-flipped' : ''}">
+              <!-- CARA TRASERA: Carta de Naipe Boca Abajo con Tocadiscos -->
+              <div class="card-face glass-panel border border-white/10 flex flex-col items-center justify-between p-3 shadow-lg select-none">
+                <div class="w-full flex items-center justify-between text-[10px] font-bold text-slate-500">
+                  <span>♠ VINILO</span>
+                  <span>#${idx + 1}</span>
+                </div>
+
+                <div class="my-auto flex items-center justify-center">
+                  ${createTurntableBackSVG(isSpinning)}
+                </div>
+
+                <span class="px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold tracking-widest ${backBadgeClass}">
+                  ${backStatusLabel}
+                </span>
+              </div>
+
+              <!-- CARA FRONTAL: Portada + Título + Artista (Revelada al voltear) -->
+              <div class="card-face card-front border ${frontBorderClass} flex flex-col justify-between p-2.5 shadow-xl transition-colors">
+                <!-- Portada ilustrada -->
+                <div class="relative w-full h-24 sm:h-28 rounded-xl overflow-hidden shadow-inner shrink-0">
+                  ${createAlbumArtSVG(opt, idx)}
+                  <div class="absolute top-1.5 right-1.5">
+                    ${badgeHtml}
+                  </div>
+                </div>
+
+                <!-- Título y artista -->
+                <div class="pt-2 px-0.5 flex flex-col justify-center min-h-0">
+                  <p class="text-xs sm:text-sm font-extrabold text-white leading-tight line-clamp-2">
+                    ${opt.title}
+                  </p>
+                  <p class="text-[11px] font-medium text-slate-300 truncate mt-0.5">
+                    ${opt.artist}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </button>
+        `;
+      }).join("");
+
+      // Conectar eventos táctiles/click cuando las cartas están volteadas
+      if (canClick) {
+        elCardsGrid.querySelectorAll("button[data-option-id]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            handlePlayerChoice(btn.getAttribute("data-option-id"));
+          });
+        });
+      }
+    }
+
+    /**
+     * Inicia una ronda: Fase 1 (8.0s de Escucha Activa con cartas bloqueadas)
+     */
+    function startRound() {
+      cancelAnimationFrame(gameState.rafId);
+      stopListeningBeat();
+
+      const currentRound = ROUNDS_DECK[gameState.roundIndex];
+      gameState.phase = "LISTENING";
+      gameState.selectedOptionId = null;
+      gameState.userAnswerTimeMs = null;
+      gameState.shuffledOptions = shuffleArray(currentRound.options);
+      gameState.phaseStartTime = performance.now();
+
+      // Actualizar cabecera y ocultar resultados previos
+      elRoundCounter.textContent = `Ronda ${gameState.roundIndex + 1} / ${ROUNDS_DECK.length}`;
+      elDrawBadge.textContent = currentRound.genreYear;
+      elResultSection.classList.add("hidden");
+      elResultSection.classList.remove("flex");
+      elActionBar.classList.add("hidden");
+
+      // Configurar panel de cronómetro para Fase 1 (8s)
+      elTimerPanel.classList.remove("urgent-pulse", "border-rose-500/40");
+      elPhasePill.textContent = "Fase 1 · Escucha";
+      elPhasePill.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/30";
+      elPhaseHint.textContent = "Cartas bloqueadas · ¡Atento!";
+      elTimerBar.className = "h-full w-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300";
+
+      renderCards();
+      startListeningBeat(currentRound.bpm);
+      runTimerLoop();
+    }
+
+    /**
+     * Transición a Fase 2: Volteo Aleatorio y Respuesta (6.0s)
+     */
+    function startAnsweringPhase() {
+      stopListeningBeat();
+      playTone(660, 0.12, "sine", 0.1);
+      setTimeout(() => playTone(880, 0.16, "sine", 0.1), 90);
+
+      gameState.phase = "ANSWERING";
+      gameState.phaseStartTime = performance.now();
+
+      elPhasePill.textContent = "Fase 2 · ¡Responde!";
+      elPhasePill.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/30";
+      elPhaseHint.textContent = "Orden aleatorio · Toca tu carta";
+      elTimerBar.className = "h-full w-full rounded-full bg-gradient-to-r from-amber-400 to-orange-400";
+
+      renderCards();
+    }
+
+    /**
+     * Bucle de alta precisión para los cronómetros de 8.0s y 6.0s
+     */
+    function runTimerLoop() {
+      const tick = (now) => {
+        if (gameState.phase === "LISTENING") {
+          const elapsed = now - gameState.phaseStartTime;
+          const remaining = Math.max(0, LISTEN_DURATION_MS - elapsed);
+          const pct = (remaining / LISTEN_DURATION_MS) * 100;
+
+          elTimerReadout.textContent = `${(remaining / 1000).toFixed(1)}s`;
+          elTimerReadout.className = "text-xl sm:text-2xl font-black tabular-nums tracking-tight text-emerald-300";
+          elTimerBar.style.width = `${pct}%`;
+
+          if (remaining <= 0) {
+            startAnsweringPhase();
+            gameState.rafId = requestAnimationFrame(tick);
+            return;
+          }
+          gameState.rafId = requestAnimationFrame(tick);
+        } else if (gameState.phase === "ANSWERING") {
+          const elapsed = now - gameState.phaseStartTime;
+          const remaining = Math.max(0, ANSWER_DURATION_MS - elapsed);
+          const pct = (remaining / ANSWER_DURATION_MS) * 100;
+
+          elTimerReadout.textContent = `${(remaining / 1000).toFixed(1)}s`;
+          elTimerBar.style.width = `${pct}%`;
+
+          // Urgencia visual en los últimos 2.0 segundos
+          if (remaining <= 2000) {
+            elTimerReadout.className = "text-xl sm:text-2xl font-black tabular-nums tracking-tight text-rose-400";
+            elTimerBar.className = "h-full w-full rounded-full bg-gradient-to-r from-rose-500 to-red-400";
+            elTimerPanel.classList.add("urgent-pulse", "border-rose-500/40");
+          } else {
+            elTimerReadout.className = "text-xl sm:text-2xl font-black tabular-nums tracking-tight text-amber-300";
+          }
+
+          if (remaining <= 0) {
+            finishRound();
+            return;
+          }
+          gameState.rafId = requestAnimationFrame(tick);
+        }
+      };
+
+      gameState.rafId = requestAnimationFrame(tick);
+    }
+
+    /**
+     * Registra la elección del jugador en milisegundos y resuelve la ronda
+     */
+    function handlePlayerChoice(optionId) {
+      if (gameState.phase !== "ANSWERING" || gameState.selectedOptionId) return;
+
+      const elapsedMs = Math.max(120, Math.round(performance.now() - gameState.phaseStartTime));
+      gameState.selectedOptionId = optionId;
+      gameState.userAnswerTimeMs = elapsedMs;
+
+      finishRound();
+    }
+
+    /**
+     * Fase 3: Simula respuestas de la sala, asigna +2 / +1 / 0 puntos y actualiza ranking
+     */
+    function finishRound() {
+      cancelAnimationFrame(gameState.rafId);
+      stopListeningBeat();
+      gameState.phase = "RESULT";
+
+      elTimerPanel.classList.remove("urgent-pulse", "border-rose-500/40");
+      elPhasePill.textContent = "Ronda Cerrada";
+      elPhasePill.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30";
+      elPhaseHint.textContent = "Resultados de la sala";
+      elTimerReadout.textContent = "0.0s";
+      elTimerReadout.className = "text-xl sm:text-2xl font-black tabular-nums tracking-tight text-slate-400";
+      elTimerBar.style.width = "0%";
+
+      const chosenOption = gameState.shuffledOptions.find(o => o.id === gameState.selectedOptionId);
+      const userIsCorrect = Boolean(chosenOption && chosenOption.correct);
+
+      // Simular respuestas de los otros 3 jugadores de la sala con tiempos realistas (1.35s a 4.8s)
+      const roundResponses = [];
+
+      if (userIsCorrect && gameState.userAnswerTimeMs !== null) {
+        roundResponses.push({
+          playerId: "you",
+          name: "Tú",
+          timeMs: gameState.userAnswerTimeMs
+        });
+      }
+
+      gameState.players.forEach(p => {
+        if (p.isUser) return;
+        // ~72% de probabilidad de que cada rival acierte dentro de los 6 segundos
+        const botCorrect = Math.random() < 0.72;
+        if (botCorrect) {
+          const botTimeMs = Math.round(1350 + Math.random() * 3400);
+          roundResponses.push({
+            playerId: p.id,
+            name: p.name,
+            timeMs: botTimeMs
+          });
+        }
+      });
+
+      // Ordenar aciertos por tiempo de respuesta (el más rápido gana +2, el resto +1)
+      roundResponses.sort((a, b) => a.timeMs - b.timeMs);
+
+      let userEarnedPoints = 0;
+      roundResponses.forEach((resp, index) => {
+        const pts = index === 0 ? 2 : 1;
+        const playerObj = gameState.players.find(p => p.id === resp.playerId);
+        if (playerObj) {
+          playerObj.score += pts;
+        }
+        if (resp.playerId === "you") {
+          userEarnedPoints = pts;
+        }
+      });
+
+      // Sonido de feedback
+      if (userEarnedPoints === 2) {
+        playTone(587.33, 0.1, "sine", 0.1);
+        setTimeout(() => playTone(880, 0.18, "sine", 0.12), 100);
+      } else if (userEarnedPoints === 1) {
+        playTone(523.25, 0.14, "sine", 0.09);
+      } else {
+        playTone(220, 0.22, "sawtooth", 0.06);
+      }
+
+      // Actualizar puntaje en cabecera
+      const userPlayer = gameState.players.find(p => p.isUser);
+      elPlayerScoreBadge.textContent = `${userPlayer.score} pts`;
+
+      // Configurar tarjeta de feedback
+      const fastest = roundResponses[0];
+      if (userEarnedPoints === 2) {
+        elFeedbackCard.className = "glass-panel rounded-2xl p-3.5 border border-emerald-400/40 bg-emerald-950/30";
+        elFeedbackTitle.className = "text-base font-black tracking-tight text-emerald-300";
+        elFeedbackTitle.textContent = "¡+2 PTS! ¡Fuiste el más rápido!";
+        elFeedbackSubtitle.textContent = `Acertaste en ${(gameState.userAnswerTimeMs / 1000).toFixed(2)}s antes que toda la sala.`;
+        elFeedbackPointsPill.className = "px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-400 text-slate-950 shrink-0";
+        elFeedbackPointsPill.textContent = "+2 PTS";
+      } else if (userEarnedPoints === 1) {
+        elFeedbackCard.className = "glass-panel rounded-2xl p-3.5 border border-teal-400/35 bg-teal-950/25";
+        elFeedbackTitle.className = "text-base font-black tracking-tight text-teal-300";
+        elFeedbackTitle.textContent = "¡+1 PT! Acierto a tiempo";
+        elFeedbackSubtitle.textContent = fastest
+          ? `Tu tiempo: ${(gameState.userAnswerTimeMs / 1000).toFixed(2)}s · ${fastest.name} ganó el +2 (${(fastest.timeMs / 1000).toFixed(2)}s).`
+          : `Acertaste dentro de los 6 segundos.`;
+        elFeedbackPointsPill.className = "px-2.5 py-1 rounded-xl text-xs font-black bg-teal-400/20 text-teal-200 border border-teal-400/40 shrink-0";
+        elFeedbackPointsPill.textContent = "+1 PT";
+      } else {
+        elFeedbackCard.className = "glass-panel rounded-2xl p-3.5 border border-rose-400/35 bg-rose-950/25";
+        elFeedbackTitle.className = "text-base font-black tracking-tight text-rose-300";
+        elFeedbackTitle.textContent = gameState.selectedOptionId
+          ? "0 PTS · Canción incorrecta"
+          : "0 PTS · Tiempo agotado";
+        elFeedbackSubtitle.textContent = fastest
+          ? `${fastest.name} respondió primero en ${(fastest.timeMs / 1000).toFixed(2)}s (+2 pts).`
+          : "Nadie acertó en esta ronda.";
+        elFeedbackPointsPill.className = "px-2.5 py-1 rounded-xl text-xs font-black bg-rose-500/20 text-rose-200 border border-rose-400/30 shrink-0";
+        elFeedbackPointsPill.textContent = "0 PTS";
+      }
+
+      renderCards();
+      renderLeaderboard(roundResponses);
+
+      elResultSection.classList.remove("hidden");
+      elResultSection.classList.add("flex");
+
+      // Configurar botón para avanzar o ver podio final
+      elActionBar.classList.remove("hidden");
+      if (gameState.roundIndex < ROUNDS_DECK.length - 1) {
+        elBtnMainLabel.textContent = `Siguiente Ronda (${gameState.roundIndex + 2} / ${ROUNDS_DECK.length})`;
+      } else {
+        elBtnMainLabel.textContent = "Ver Podio Final";
+      }
+    }
+
+    /**
+     * Renderiza el mini tablero de posiciones ordenado por puntaje
+     */
+    function renderLeaderboard(roundResponses = []) {
+      const sorted = [...gameState.players].sort((a, b) => b.score - a.score);
+
+      elLeaderboardList.innerHTML = sorted.map((player, idx) => {
+        const respIndex = roundResponses.findIndex(r => r.playerId === player.id);
+        let deltaBadge = `<span class="text-[11px] font-semibold text-slate-500">+0</span>`;
+        if (respIndex === 0) {
+          deltaBadge = `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-black">+2</span>`;
+        } else if (respIndex > 0) {
+          deltaBadge = `<span class="px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-300 text-[10px] font-bold">+1</span>`;
+        }
+
+        const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}.`;
+
+        return `
+          <div class="flex items-center justify-between px-2.5 py-1.5 rounded-xl ${player.isUser ? 'bg-white/10 border border-emerald-400/30' : 'bg-white/[0.03]'}">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-xs font-bold w-5 text-center">${medal}</span>
+              <span class="w-2.5 h-2.5 rounded-full bg-gradient-to-br ${player.avatarColor} shrink-0"></span>
+              <span class="text-xs font-bold truncate ${player.isUser ? 'text-white' : 'text-slate-300'}">
+                ${player.name}
+              </span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              ${deltaBadge}
+              <span class="text-xs font-black text-amber-300 tabular-nums w-12 text-right">
+                ${player.score} pts
+              </span>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    /**
+     * Muestra el podio final al terminar las 12 rondas
+     */
+    function showFinalPodium() {
+      gameState.phase = "FINISHED";
+      elCardsGrid.classList.add("hidden");
+      elTimerPanel.classList.add("hidden");
+      elResultSection.classList.add("hidden");
+      elActionBar.classList.add("hidden");
+
+      const sorted = [...gameState.players].sort((a, b) => b.score - a.score);
+      const userRank = sorted.findIndex(p => p.isUser) + 1;
+      const winner = sorted[0];
+
+      elFinalHeadline.textContent = winner.isUser
+        ? "¡Ganaste la partida!"
+        : `¡${winner.name} lidera el podio!`;
+      elFinalSubheadline.textContent = `Terminaste en el puesto #${userRank} con ${sorted.find(p => p.isUser).score} puntos en 12 rondas.`;
+
+      elFinalRankingList.innerHTML = sorted.map((player, idx) => {
+        const medal = idx === 0 ? "🏆" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`;
+        return `
+          <div class="flex items-center justify-between p-3 rounded-2xl ${idx === 0 ? 'bg-amber-500/15 border border-amber-400/40' : 'bg-white/5 border border-white/10'}">
+            <div class="flex items-center gap-2.5">
+              <span class="text-lg">${medal}</span>
+              <div>
+                <p class="text-sm font-extrabold text-white">${player.name}</p>
+                <p class="text-[11px] text-slate-400">${idx === 0 ? 'Campeón de la sala' : `Puesto ${idx + 1}`}</p>
+              </div>
+            </div>
+            <span class="text-base font-black text-amber-300">${player.score} pts</span>
+          </div>
+        `;
+      }).join("");
+
+      elFinalPodiumSection.classList.remove("hidden");
+      elFinalPodiumSection.classList.add("flex");
+    }
+
+    /**
+     * Reinicia completamente la partida en memoria
+     */
+    function resetGameMemory() {
+      cancelAnimationFrame(gameState.rafId);
+      stopListeningBeat();
+
+      gameState.roundIndex = 0;
+      gameState.phase = "IDLE";
+      gameState.shuffledOptions = [];
+      gameState.selectedOptionId = null;
+      gameState.userAnswerTimeMs = null;
+      gameState.players.forEach(p => { p.score = 0; });
+
+      elPlayerScoreBadge.textContent = "0 pts";
+      elRoundCounter.textContent = `Ronda 1 / ${ROUNDS_DECK.length}`;
+      elDrawBadge.textContent = ROUNDS_DECK[0].genreYear;
+      elTimerReadout.textContent = "8.0s";
+      elTimerReadout.className = "text-xl sm:text-2xl font-black tabular-nums tracking-tight text-slate-100";
+      elTimerBar.style.width = "100%";
+      elTimerBar.className = "h-full w-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300";
+      elPhasePill.textContent = "Listo para jugar";
+      elPhasePill.className = "px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-slate-700/80 text-slate-200";
+      elPhaseHint.textContent = "Pulsa iniciar para escuchar";
+
+      elFinalPodiumSection.classList.add("hidden");
+      elFinalPodiumSection.classList.remove("flex");
+      elResultSection.classList.add("hidden");
+      elResultSection.classList.remove("flex");
+      elCardsGrid.classList.remove("hidden");
+      elTimerPanel.classList.remove("hidden");
+      elActionBar.classList.remove("hidden");
+      elBtnMainLabel.textContent = "Iniciar Ronda 1";
+
+      renderCards();
+    }
+
+    // Eventos de botones principales
+    elBtnMainAction.addEventListener("click", () => {
+      if (gameState.phase === "IDLE") {
+        startRound();
+      } else if (gameState.phase === "RESULT") {
+        if (gameState.roundIndex < ROUNDS_DECK.length - 1) {
+          gameState.roundIndex++;
+          startRound();
+        } else {
+          showFinalPodium();
+        }
+      }
+    });
+
+    elBtnRestartGame.addEventListener("click", resetGameMemory);
+
+    // Toggle de pulso sonoro sintetizado
+    document.getElementById("btn-sound-toggle").addEventListener("click", () => {
+      gameState.soundEnabled = !gameState.soundEnabled;
+      document.getElementById("icon-sound-on").classList.toggle("hidden", !gameState.soundEnabled);
+      document.getElementById("icon-sound-off").classList.toggle("hidden", gameState.soundEnabled);
+
+      if (!gameState.soundEnabled) {
+        stopListeningBeat();
+      } else if (gameState.phase === "LISTENING") {
+        startListeningBeat(ROUNDS_DECK[gameState.roundIndex].bpm);
+      }
+    });
+
+    // Modal de transparencia y sesión efímera
+    const openModal = () => {
+      elPrivacyModal.classList.remove("hidden");
+      elPrivacyModal.classList.add("flex");
+    };
+    const closeModal = () => {
+      elPrivacyModal.classList.add("hidden");
+      elPrivacyModal.classList.remove("flex");
+    };
+
+    document.getElementById("btn-privacy-info").addEventListener("click", openModal);
+    document.getElementById("btn-close-modal-x").addEventListener("click", closeModal);
+    document.getElementById("btn-accept-modal").addEventListener("click", closeModal);
+    elPrivacyModal.addEventListener("click", (e) => {
+      if (e.target === elPrivacyModal) closeModal();
+    });
+
+    // Limpieza explícita de memoria al cerrar o abandonar la pestaña
+    window.addEventListener("pagehide", () => {
+      stopListeningBeat();
+      cancelAnimationFrame(gameState.rafId);
+      gameState = null;
+    });
+
+    // Inicialización de pantalla
+    renderCards();
+  </script>
+</body>
+</html>

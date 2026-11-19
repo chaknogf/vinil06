@@ -1,0 +1,84 @@
+:host {
+  display: block;
+}
+
+.karaoke {
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-color: rgba(251, 113, 133, 0.28);
+}
+
+.head {
+  flex-wrap: wrap;
+}
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cover {
+  width: 76px;
+  height: 76px;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+
+.song-meta {
+  min-width: 0;
+}
+
+.song-title {
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.2;
+  margin-top: 3px;
+}
+
+.song-artist {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.singer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+
+.singer strong {
+  font-size: 13px;
+}
+
+.wildcards {
+  margin-left: auto;
+  font-size: 10px;
+  color: #a5b4fc;
+  font-weight: 700;
+}
+
+.challenge {
+  font-size: 12px;
+  color: #fecdd3;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

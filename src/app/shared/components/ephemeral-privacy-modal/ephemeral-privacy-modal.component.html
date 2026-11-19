@@ -1,0 +1,56 @@
+@if (visible()) {
+  <div class="backdrop" (keydown)="onKeydown($event)">
+    <section
+      class="panel glass-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ephemeral-title"
+      aria-describedby="ephemeral-copy"
+    >
+      <header class="head">
+        <div class="lock" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+            />
+          </svg>
+        </div>
+        <div>
+          <span class="eyebrow">Antes de activar el tablero</span>
+          <h2 id="ephemeral-title" class="title">Sesión efímera y privada</h2>
+        </div>
+      </header>
+
+      <div id="ephemeral-copy" class="copy">
+        <p>
+          <strong>Conectar tu Spotify Premium es opcional.</strong> Si lo haces, Vinil06 usa un
+          flujo PKCE para coordinar la música (play en los 8s, pausa al voltear). Si prefieres,
+          abre cada canción desde el tablero o reprodúcela en tu app: la partida nunca se bloquea.
+        </p>
+        <p>
+          <strong>No se copian, guardan, exportan ni transmiten</strong> datos personales,
+          correos, credenciales, historial ni playlists. Los tokens de sesión viven
+          <strong>solo en memoria volátil de esta pestaña (Signals)</strong>, sin persistirse
+          en bases de datos ni almacenamiento local.
+        </p>
+        <p>
+          El estado de la partida y la caché viven solo en memoria volátil (RAM / Signals)
+          y <strong>se borran automáticamente al cerrar la pestaña</strong>
+          (<code>pagehide</code> / <code>beforeunload</code>) o al finalizar la sala.
+        </p>
+      </div>
+
+      <div class="actions">
+        <button #acceptButton type="button" class="btn btn-primary btn-block" (click)="accept.emit()">
+          Aceptar y activar tablero
+        </button>
+        <button type="button" class="btn btn-ghost btn-block" (click)="manual.emit()">
+          Usar solo como tablero manual
+        </button>
+        <button type="button" class="text-btn" (click)="dismiss.emit()">Ahora no</button>
+      </div>
+    </section>
+  </div>
+}

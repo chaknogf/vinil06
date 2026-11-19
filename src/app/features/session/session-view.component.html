@@ -1,0 +1,20 @@
+@if (state(); as room) {
+  @if (session.role() === 'host') {
+    <app-host-board [state]="room" />
+  } @else {
+    <app-player-card
+      [state]="room"
+      [clientId]="session.clientId"
+      [clockOffset]="session.clockOffset()"
+      [canInteract]="true"
+    />
+  }
+} @else {
+  <div class="app-column">
+    <section class="glass-panel connecting">
+      <span class="badge badge-accent"><span class="dot"></span> Conectando con la sala…</span>
+      <p class="connecting-title">Esperando el tablero del anfitrión</p>
+      <p class="connecting-copy">No te preocupes: en cuanto gire la ruleta verás aquí tus cartas. Nada de esto se guarda.</p>
+    </section>
+  </div>
+}

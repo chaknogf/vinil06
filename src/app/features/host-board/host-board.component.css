@@ -1,0 +1,157 @@
+:host {
+  display: block;
+}
+
+.host-column {
+  max-width: 980px;
+}
+
+.host-header {
+  border-radius: 16px;
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.head-left {
+  min-width: 0;
+}
+
+.mode-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.controls {
+  flex: 0 0 auto;
+}
+
+.privacy-btn {
+  min-height: 38px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+}
+
+.privacy-btn.danger {
+  color: #fda4af;
+}
+
+.sub-row {
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.phase-chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.16);
+  border: 1px solid rgba(129, 140, 248, 0.3);
+}
+
+.round {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.invite-btn {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #6ee7b7;
+  background: var(--accent-soft);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.mobile-tabs {
+  display: grid;
+}
+
+.host-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-stack,
+.cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.mobile-hidden {
+  display: none;
+}
+
+.hint-panel,
+.result-panel {
+  border-radius: 16px;
+  padding: 13px 14px;
+}
+
+.hint-title,
+.result-title {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.hint-copy,
+.result-copy {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.hint-copy strong {
+  color: #6ee7b7;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.action-grid.manual {
+  grid-template-columns: 1fr;
+}
+
+.main-action {
+  font-size: 14px;
+  padding: 14px 18px;
+}
+
+@media (min-width: 900px) {
+  .mobile-tabs {
+    display: none;
+  }
+
+  .host-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    align-items: start;
+  }
+
+  .mobile-hidden {
+    display: flex;
+  }
+}

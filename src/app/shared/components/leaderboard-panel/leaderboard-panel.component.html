@@ -1,0 +1,43 @@
+<section class="glass-panel board" aria-label="Tablero de posiciones">
+  <header class="board-head">
+    <h2>{{ title() }}</h2>
+    <span class="caption">{{ caption() }}</span>
+  </header>
+
+  @if (final() && podium().length) {
+    <div class="podium-strip">
+      @for (entry of podium(); track entry.player.id) {
+        <div class="podium-step" [class.step-first]="entry.rank === 1">
+          <span class="medal">{{ medal(entry.rank) }}</span>
+          <span class="podium-name truncate">{{ entry.player.name }}</span>
+          <strong class="podium-score tabular">{{ entry.player.score }}</strong>
+        </div>
+      }
+    </div>
+  }
+
+  <ol class="rows">
+    @for (entry of ranked(); track entry.player.id) {
+      <li
+        class="row"
+        [class.row-me]="entry.player.id === highlightId()"
+        [class.row-first]="entry.rank === 1"
+      >
+        <span class="rank">{{ medal(entry.rank) }}</span>
+        <span class="avatar" [style.background]="entry.player.color" aria-hidden="true"></span>
+        <div class="identity">
+          <span class="name truncate">{{ entry.player.name }}</span>
+          @if (entry.player.answered) {
+            <span class="answered">respondió</span>
+          }
+        </div>
+        @if (entry.delta > 0) {
+          <span class="delta">+{{ entry.delta }}</span>
+        }
+        <strong class="score tabular">{{ entry.player.score }}</strong>
+      </li>
+    } @empty {
+      <li class="empty">El tablero se llena cuando entre la primera persona.</li>
+    }
+  </ol>
+</section>

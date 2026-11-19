@@ -1,0 +1,39 @@
+<section class="glass-panel board" aria-label="Tablero de posiciones">
+  <div class="row-between head">
+    <h2 class="board-title">{{ title() }}</h2>
+    <span class="board-caption">{{ caption() }}</span>
+  </div>
+
+  @if (ranked().length === 0) {
+    <p class="empty">Aún no hay jugadores. Comparte el código de sala para empezar.</p>
+  } @else {
+    <ul class="list">
+      @for (entry of ranked(); track entry.player.id) {
+        <li
+          class="row-between item"
+          [class.item-me]="entry.player.id === highlightId()"
+          [class.item-first]="entry.rank === 1"
+        >
+          <div class="row identity">
+            <span class="medal">{{ medal(entry.rank) }}</span>
+            <span class="avatar" [style.background]="entry.player.color"></span>
+            <div class="who">
+              <span class="name truncate">{{ entry.player.name }}</span>
+              @if (entry.player.isBot) {
+                <span class="tag">BOT</span>
+              }
+            </div>
+          </div>
+          <div class="row numbers">
+            @if (entry.delta > 0) {
+              <span class="delta" [class.delta-first]="entry.delta === 2">+{{ entry.delta }}</span>
+            } @else {
+              <span class="delta-zero">+0</span>
+            }
+            <span class="score tabular">{{ entry.player.score }} pts</span>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>

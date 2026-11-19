@@ -1,0 +1,60 @@
+<section class="glass-panel karaoke">
+  <div class="row-between head">
+    <span class="badge badge-danger">🎤 Ruleta Rusa</span>
+    @if (turn().wildcardUsed) {
+      <span class="badge badge-indigo">Comodín usado · +1</span>
+    } @else {
+      <span class="badge badge-amber">Cantar bien · +2</span>
+    }
+  </div>
+
+  <div class="song-row">
+    <div class="cover">
+      <app-album-art
+        [palette]="turn().track.palette"
+        [motif]="turn().track.motif"
+        [uid]="'karaoke_' + turn().track.id"
+        [src]="turn().track.cover ?? ''"
+      />
+    </div>
+    <div class="song-meta">
+      <p class="eyebrow">Tu canción asignada</p>
+      <p class="song-title">{{ turn().track.title }}</p>
+      <p class="song-artist">{{ turn().track.artist }}</p>
+    </div>
+  </div>
+
+  <div class="singer">
+    <span class="eyebrow">Turno de</span>
+    <strong>{{ turn().singerName }}</strong>
+    <span class="wildcards">{{ turn().wildcardsLeft }} comodín disponible</span>
+  </div>
+
+  <p class="challenge">{{ turn().challenge }}</p>
+
+  <app-timer-panel
+    [durationMs]="turn().durationMs"
+    [startedAt]="startedAt()"
+    [clockOffset]="clockOffset()"
+    [active]="active()"
+    label="Karaoke · turno"
+    hint="Canta hasta que termine el cronómetro"
+    tone="amber"
+  />
+
+  @if (canInteract()) {
+    <div class="actions">
+      <button
+        type="button"
+        class="btn btn-ghost"
+        [disabled]="turn().wildcardsLeft < 1"
+        (click)="wildcard.emit()"
+      >
+        🎲 Usar comodín (cambiar canción)
+      </button>
+      <button type="button" class="btn btn-primary btn-block" (click)="done.emit()">
+        ¡Ya canté!
+      </button>
+    </div>
+  }
+</section>

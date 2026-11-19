@@ -1,0 +1,28 @@
+<section class="glass-panel podium" aria-label="Podio final">
+  <header class="head">
+    <span class="badge badge-amber">Partida finalizada · 12 rondas</span>
+    <h2 class="headline">{{ title() }}</h2>
+    <p class="subtitle">{{ subtitle() }}</p>
+  </header>
+
+  <ol class="ranking">
+    @for (player of ranked(); track player.id; let i = $index) {
+      <li class="rank-row" [class.rank-first]="i === 0">
+        <span class="rank-medal">{{ medal(i + 1) }}</span>
+        <div class="rank-who">
+          <p class="rank-name">{{ player.name }}</p>
+          <p class="rank-detail">{{ i === 0 ? 'Campeón de la sala' : 'Puesto ' + (i + 1) }}</p>
+        </div>
+        <span class="rank-score tabular">{{ player.score }} pts</span>
+      </li>
+    } @empty {
+      <li class="rank-row">No hubo jugadores en esta partida.</li>
+    }
+  </ol>
+
+  @if (showAction()) {
+    <button type="button" class="btn btn-amber btn-block" (click)="newGame.emit()">
+      {{ actionLabel() }}
+    </button>
+  }
+</section>
