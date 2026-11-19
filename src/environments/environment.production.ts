@@ -3,14 +3,13 @@
  * No importa `environment.ts`: en build de producción ese path se sustituye
  * por este mismo archivo y crearíamos una referencia circular.
  *
- * Por defecto se mantiene el proveedor local para que la SPA sea jugable sin
- * backend. Para partidas entre celulares: `syncProvider: 'cloud'` y configura
- * `cloud.url` (WebSocket) o inyecta un cliente Supabase con CLOUD_REALTIME_CLIENT.
+ * El transporte 'peer' usa WebRTC con el host como hub: funciona entre
+ * celulares sin backend propio ni cuotas de servicios externos.
  */
 export const environment = {
   production: true,
   appName: 'Vinil06',
-  syncProvider: 'local' as 'local' | 'cloud',
+  syncProvider: 'peer' as 'local' | 'cloud' | 'peer',
   cloud: {
     transport: 'websocket' as 'websocket' | 'supabase',
     url: '',

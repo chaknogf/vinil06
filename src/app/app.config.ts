@@ -4,6 +4,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 import { environment } from '../environments/environment';
 import { routes } from './app.routes';
 import { LocalBroadcastSyncProvider } from './core/sync/local-broadcast-sync.provider';
+import { PeerHubSyncProvider } from './core/sync/peer-hub-sync.provider';
 import { RealtimeCloudSyncProvider } from './core/sync/realtime-cloud-sync.provider';
 import { ROOM_SYNC_PROVIDER } from './core/sync/room-sync.provider';
 
@@ -14,9 +15,11 @@ export const appConfig: ApplicationConfig = {
     {
       provide: ROOM_SYNC_PROVIDER,
       useClass:
-        environment.syncProvider === 'cloud'
-          ? RealtimeCloudSyncProvider
-          : LocalBroadcastSyncProvider
+        environment.syncProvider === 'peer'
+          ? PeerHubSyncProvider
+          : environment.syncProvider === 'cloud'
+            ? RealtimeCloudSyncProvider
+            : LocalBroadcastSyncProvider
     },
     // El SW solo cachea el app shell; las señales de sala y /api nunca se persisten.
     provideServiceWorker('ngsw-worker.js', {

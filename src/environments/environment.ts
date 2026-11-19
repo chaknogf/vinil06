@@ -8,12 +8,14 @@ export const environment = {
 
   /**
    * Proveedor de sincronización de sala:
-   * - 'local': BroadcastChannel + RAM (múltiples pestañas en el mismo navegador, con bots).
-   * - 'cloud': pub/sub efímero (WebSocket o Supabase Realtime Broadcast) para varios dispositivos.
+   * - 'peer': WebRTC con el host como hub (PeerJS, sin backend ni cuota de servicios).
+   * - 'local': BroadcastChannel + RAM (pestañas del mismo navegador).
+   * - 'cloud': pub/sub efímero (WebSocket o Supabase), requiere `cloud.url` o cliente inyectado.
    *
-   * Cambia a 'cloud' y rellena `cloud` cuando quieras jugar entre celulares.
+   * 'peer' permite jugar entre celulares sin servidor propio: solo usa el
+   * signaling público de PeerJS para que los invitados encuentren al host.
    */
-  syncProvider: 'local' as 'local' | 'cloud',
+  syncProvider: 'peer' as 'local' | 'cloud' | 'peer',
 
   cloud: {
     /** Tipo de transporte: 'websocket' o 'supabase'. */

@@ -31,7 +31,7 @@ export type AnySyncMessage = { [K in SyncMessageType]: SyncEnvelope<K> }[SyncMes
  * Intercambiables desde environment.ts. El resto de la app solo conoce esta interfaz.
  */
 export interface RoomSyncProvider {
-  readonly kind: 'local' | 'cloud';
+  readonly kind: 'local' | 'cloud' | 'peer';
   readonly status: Observable<ConnectionStatus>;
   readonly messages$: Observable<AnySyncMessage>;
   connect(roomCode: string, role: Role, clientId: string): void;
