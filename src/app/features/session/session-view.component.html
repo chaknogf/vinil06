@@ -11,10 +11,23 @@
   }
 } @else {
   <div class="app-column">
-    <section class="glass-panel connecting">
-      <span class="badge badge-accent"><span class="dot"></span> Conectando con la sala…</span>
-      <p class="connecting-title">Esperando el tablero del anfitrión</p>
-      <p class="connecting-copy">No te preocupes: en cuanto gire la ruleta verás aquí tus cartas. Nada de esto se guarda.</p>
-    </section>
+    @if (session.connection() === 'unavailable') {
+      <section class="glass-panel connecting">
+        <span class="badge badge-danger"><span class="dot"></span> Sin conexión con la sala</span>
+        <p class="connecting-title">No pudimos contactar al anfitrión</p>
+        <p class="connecting-copy">
+          Comprueba el código y que el anfitrión tenga Vinil06 abierto. Seguimos intentando en segundo plano.
+        </p>
+        <button type="button" class="btn btn-ghost" (click)="session.retryConnection()">
+          Reintentar ahora
+        </button>
+      </section>
+    } @else {
+      <section class="glass-panel connecting">
+        <span class="badge badge-accent"><span class="dot"></span> Conectando con la sala…</span>
+        <p class="connecting-title">Esperando el tablero del anfitrión</p>
+        <p class="connecting-copy">No te preocupes: en cuanto gire la ruleta verás aquí tus cartas. Nada de esto se guarda.</p>
+      </section>
+    }
   </div>
 }

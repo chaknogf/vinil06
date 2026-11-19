@@ -174,6 +174,18 @@ export class GameSessionService implements OnDestroy {
     this.#sendHello();
   }
 
+  /** Reintento manual desde la UI cuando el canal no responde. */
+  retryConnection(): void {
+    const role = this.role();
+    const code = this.roomCode();
+    if (!role || !code) return;
+    this.remoteState.set(null);
+    this.#helloSent = false;
+    this.connection.set('idle');
+    this.#sync.connect(code, role, this.clientId);
+    if (role === 'player') this.#sendHello();
+  }
+
   leave(): void {
     if (this.role() === 'player') {
       this.#sync.publish('BYE', {});

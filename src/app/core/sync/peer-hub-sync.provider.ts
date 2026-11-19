@@ -31,6 +31,7 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
   connect(roomCode: string, role: Role, _clientId: string): void {
     this.disconnect();
     this.#role = role;
+    this.#retries = 0;
     this.#roomId = `vinil06-${roomCode.toUpperCase()}`;
 
     // El host toma un ID fijo derivado del código; los jugadores reciben uno
@@ -52,7 +53,12 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
       if (!peer.destroyed) peer.reconnect();
     });
 
-    peer.on('error', () => this.#status$.next('unavailable'));
+    peer.on('error', () => {
+      this.#status$.next('unavailable');
+      // El host puede no haber abierto la sala todavía (modal, OAuth, etc.).
+      // Seguimos buscándolo mientras la pestaña siga en la partida.
+      if (this.#role === 'player') this.#scheduleRetry();
+    });
   }
 
   publish(message: AnySyncMessage): void {
@@ -107,12 +113,18 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
     if (this.#role !== 'player') return;
 
     this.#status$.next('unavailable');
-    // El host puede tardar en abrir la sala: reintentamos un número finito.
-    if (this.#retries++ >= 5) return;
+    this.#scheduleRetry();
+  }
+
+  /** Reintento con backoff suave, sin límite mientras la sala siga abierta. */
+  #scheduleRetry(): void {
+    if (this.#retryId !== null) return;
+    const delay = Math.min(1500 * (this.#retries + 1), 5000);
+    this.#retries++;
     this.#retryId = setTimeout(() => {
       this.#retryId = null;
       this.#openGuestConnection();
-    }, 1500);
+    }, delay);
   }
 }
 
