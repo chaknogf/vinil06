@@ -4,6 +4,7 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": "dist/vinil06/browser",
   "rewrites": [
+    { "source": "/api/catalog", "destination": "/api/catalog.mjs" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

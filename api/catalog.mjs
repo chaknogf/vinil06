@@ -3,50 +3,12 @@
  * Consulta metadatos públicos de iTunes (sin OAuth ni usuario) y devuelve
  * vinilos normalizados al esquema VinilTrack. El cliente hace fallback local
  * si esta función no existe o falla: la app nunca depende de ella para jugar.
+ *
+ * Es .mjs a propósito: el tsconfig del build de Angular usa `module: preserve`
+ * y Vercel no puede cargar ese output CommonJS como función.
  */
 
-interface ApiRequest {
-  readonly url?: string;
-  readonly method?: string;
-}
-
-interface ApiResponse {
-  setHeader(name: string, value: string): void;
-  writeHead(status: number, headers?: Record<string, string>): void;
-  end(body?: string): void;
-}
-
-interface VinilTrackDTO {
-  id: string;
-  title: string;
-  artist: string;
-  genre: string;
-  year: number;
-  decade: string;
-  bpm: number;
-  palette: [string, string];
-  motif: number;
-  cover: string;
-  /** Spotify URI cuando la fuente la expone; iTunes no la provee, por eso es opcional. */
-  spotifyUri?: string;
-}
-
-interface ITunesResult {
-  trackId?: number;
-  trackName?: string;
-  artistName?: string;
-  primaryGenreName?: string;
-  releaseDate?: string;
-  artworkUrl100?: string;
-  trackTimeMillis?: number;
-}
-
-interface ITunesResponse {
-  resultCount?: number;
-  results?: ITunesResult[];
-}
-
-const SEARCH_TERMS: Record<string, readonly string[]> = {
+const SEARCH_TERMS = {
   viral: ['bad bunny', 'the weeknd', 'dua lipa', 'karol g'],
   clasicos: ['michael jackson', 'queen', 'a-ha', 'soda stereo'],
   hits: ['coldplay', 'shakira', 'daft punk', 'bruno mars'],
@@ -54,7 +16,7 @@ const SEARCH_TERMS: Record<string, readonly string[]> = {
   mix: ['latin pop', 'rock classics', 'dance hits', 'pop hits']
 };
 
-const PALETTES: readonly (readonly [string, string])[] = [
+const PALETTES = [
   ['#0ea5e9', '#1e1b4b'],
   ['#10b981', '#064e3b'],
   ['#6366f1', '#1e293b'],
@@ -63,27 +25,27 @@ const PALETTES: readonly (readonly [string, string])[] = [
   ['#ec4899', '#3b0764']
 ];
 
-function hash(value: string): number {
+function hash(value) {
   return [...value].reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) >>> 0, 7);
 }
 
-function xml(value: string): string {
+function xml(value) {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function svgCover(title: string, artist: string): string {
-  const [from, to] = PALETTES[hash(title) % PALETTES.length]!;
+function svgCover(title, artist) {
+  const [from, to] = PALETTES[hash(title) % PALETTES.length];
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${from}"/><circle cx="50" cy="42" r="18" fill="${to}"/><rect y="72" width="100" height="28" fill="rgba(9,11,16,.7)"/><text x="6" y="84" fill="#fff" font-size="7" font-family="Arial">${xml(title.slice(0, 18))}</text><text x="6" y="94" fill="#cbd5e1" font-size="5" font-family="Arial">${xml(artist.slice(0, 20))}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-function normalize(result: ITunesResult): VinilTrackDTO | null {
+function normalize(result) {
   if (!result.trackId || !result.trackName || !result.artistName) return null;
   const year = Number.parseInt((result.releaseDate ?? '').slice(0, 4), 10);
   const safeYear = Number.isFinite(year) && year > 1900 ? year : 2000;
   const id = `it-${result.trackId}`;
   const cover = (result.artworkUrl100 ?? '').replace('100x100bb', '600x600bb');
-  const [from, to] = PALETTES[hash(id) % PALETTES.length]!;
+  const [from, to] = PALETTES[hash(id) % PALETTES.length];
 
   return {
     id,
@@ -99,19 +61,19 @@ function normalize(result: ITunesResult): VinilTrackDTO | null {
   };
 }
 
-async function search(term: string): Promise<readonly ITunesResult[]> {
+async function search(term) {
   const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=14&country=US`;
   const response = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!response.ok) return [];
-  const body = (await response.json()) as ITunesResponse;
+  const body = await response.json();
   return body.results ?? [];
 }
 
-export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
+export default async function handler(req, res) {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const requested = url.searchParams.get('pack') ?? 'mix';
   const pack = Object.hasOwn(SEARCH_TERMS, requested) ? requested : 'mix';
-  const terms = SEARCH_TERMS[pack] ?? SEARCH_TERMS['mix']!;
+  const terms = SEARCH_TERMS[pack] ?? SEARCH_TERMS.mix;
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -120,8 +82,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
 
   try {
     const batches = await Promise.allSettled(terms.map(search));
-    const seen = new Set<string>();
-    const tracks: VinilTrackDTO[] = [];
+    const seen = new Set();
+    const tracks = [];
 
     for (const batch of batches) {
       if (batch.status !== 'fulfilled') continue;
