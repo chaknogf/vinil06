@@ -361,7 +361,10 @@ export class SpotifyHostAudioService {
     this.accountName.set(profile.display_name?.trim() || 'Tu cuenta');
     this.accountEmail.set(profile.email?.trim() || '');
 
-    if (profile.product !== 'premium') {
+    // Desde 2026 Spotify eliminó `product` de /v1/me en apps Dev Mode. Solo lo
+    // usamos si viene explícitamente; si falta, probamos el control de playback
+    // y un 403 PREMIUM_REQUIRED nos corrige. Premium Familiar cuenta como Premium.
+    if (profile.product === 'free' || profile.product === 'open') {
       this.isPremium.set(false);
       this.#set('free', 'Tu cuenta de Spotify es Free. La reproducción automática requiere Premium; podés seguir en manual.');
       return;
@@ -418,8 +421,11 @@ export class SpotifyHostAudioService {
     const status = error instanceof SpotifyApiError ? error.status : 0;
     if (status === 404) {
       this.#set('no-device', 'El dispositivo de Spotify dejó de estar disponible. Seguimos en manual.');
+    } else if (error instanceof SpotifyApiError && error.message.includes('PREMIUM_REQUIRED')) {
+      this.isPremium.set(false);
+      this.#set('free', 'Spotify requiere Premium para controlar la reproducción; podés seguir en manual.');
     } else if (status === 403) {
-      this.#set('error', 'Spotify denegó la reproducción. Revisá tu Premium y los permisos; seguimos en manual.');
+      this.#set('error', 'Spotify denegó la reproducción. Revisá los permisos; seguimos en manual.');
     } else {
       this.#set('error', 'No se pudo controlar Spotify. La partida continúa en modo manual.');
     }
