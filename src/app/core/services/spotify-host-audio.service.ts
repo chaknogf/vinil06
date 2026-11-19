@@ -21,6 +21,7 @@ interface TokenResponse {
 interface ProfileResponse {
   readonly product?: string;
   readonly display_name?: string;
+  readonly email?: string;
 }
 
 interface DevicesResponse {
@@ -70,6 +71,8 @@ export class SpotifyHostAudioService {
   readonly status = signal<SpotifyHostStatus>('idle');
   readonly isPremium = signal(false);
   readonly accountName = signal('');
+  /** Email de la cuenta autorizada: permite detectar un login con la cuenta equivocada. */
+  readonly accountEmail = signal('');
   readonly deviceName = signal('');
   readonly playing = signal(false);
   readonly message = signal('');
@@ -222,6 +225,7 @@ export class SpotifyHostAudioService {
     this.playing.set(false);
     this.isPremium.set(false);
     this.accountName.set('');
+    this.accountEmail.set('');
     this.deviceName.set('');
     this.#clearPkce();
     this.#set(this.configured ? 'idle' : 'not-configured', '');
@@ -355,6 +359,7 @@ export class SpotifyHostAudioService {
   async #loadProfileAndDevice(): Promise<void> {
     const profile = await this.#api<ProfileResponse>('/v1/me');
     this.accountName.set(profile.display_name?.trim() || 'Tu cuenta');
+    this.accountEmail.set(profile.email?.trim() || '');
 
     if (profile.product !== 'premium') {
       this.isPremium.set(false);

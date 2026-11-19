@@ -11,6 +11,15 @@
     </span>
   </div>
 
+  @if (spotify.accountName()) {
+    <p class="account-line">
+      Cuenta: <strong>{{ spotify.accountName() }}</strong>
+      @if (spotify.accountEmail()) {
+        <span>· {{ spotify.accountEmail() }}</span>
+      }
+    </p>
+  }
+
   @if (track(); as current) {
     <div class="spotify-track">
       <span class="spotify-cover" aria-hidden="true">

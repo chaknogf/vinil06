@@ -53,6 +53,18 @@
   background: currentColor;
 }
 
+.account-line {
+  margin: 0 0 0.6rem;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.account-line strong {
+  color: var(--text-muted);
+}
+
 .spotify-track {
   display: flex;
   align-items: center;
