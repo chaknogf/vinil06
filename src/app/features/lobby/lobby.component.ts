@@ -179,10 +179,14 @@ export class LobbyComponent {
     return packLabel(this.pack());
   }
 
-  /** Escribir el apodo tras pegar/vivir con el código también entra automáticamente. */
+  /**
+   * El apodo es texto libre: NUNCA entramos automáticamente al escribirlo, o
+   * el jugador sería registrado con la primera sílaba (p. ej. "An" en vez de
+   * "Ana"). El botón "Entrar a la sala" o Enter confirma el nombre completo.
+   */
   onNickname(value: string): void {
     this.nickname.set(value);
-    if (this.tab() === 'join' && this.canJoin()) this.joinRoom();
+    this.error.set('');
   }
 
   joinRoom(): void {
@@ -204,9 +208,8 @@ export class LobbyComponent {
     const code = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
     this.joinCode.set(code);
     this.error.set('');
-    // Al completar los 6 caracteres entramos solos: el botón queda como respaldo
-    // para el caso de venir por enlace (/jugar/CODE) o pegar un código incompleto.
-    if (code.length === 6) this.joinRoom();
+    // Sin auto-ingreso: el jugador termina su apodo y pulsa "Entrar a la sala".
+    // Así nunca se registra a medias un nombre ni se entra antes de querer.
   }
 
   setBots(value: number): void {

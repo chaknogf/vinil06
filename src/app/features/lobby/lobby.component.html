@@ -255,18 +255,19 @@
           (keydown.enter)="joinRoom()"
         />
 
+        @if (joinCode().length !== 6) {
+          <p class="field-hint">Escribe el código de 6 caracteres que te pasó el anfitrión.</p>
+        }
+
         @if (error()) {
           <p class="error-text" role="alert">{{ error() }}</p>
         }
 
-        <button
-          type="button"
-          class="btn btn-primary btn-block join-btn"
-          [disabled]="!canJoin()"
-          (click)="joinRoom()"
-        >
-          Entrar a la sala
-        </button>
+        @if (canJoin()) {
+          <button type="button" class="btn btn-primary btn-block join-btn" (click)="joinRoom()">
+            Entrar a la sala
+          </button>
+        }
         <p class="join-note">
           Sin registro ni inicio de sesión: como jugador no conectas Spotify. Tu apodo vive solo en memoria.
         </p>
