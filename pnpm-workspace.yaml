@@ -1,3 +1,9 @@
+# pnpm 12 verifica la antigüedad de cada paquete del lockfile (default: 1440 min).
+# Angular 22.3.0 se publicó hace poco y Vercel rechazaba el install con
+# ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION. Desactivamos ese retardo: las versiones
+# están fijadas en pnpm-lock.yaml y revisadas localmente antes de publicar.
+minimumReleaseAge: 0
+
 # pnpm 11+/12+: las aprobaciones de scripts de build viven aquí (no en package.json).
 allowBuilds:
   '@parcel/watcher': true
