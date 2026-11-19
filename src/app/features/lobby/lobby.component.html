@@ -192,6 +192,8 @@
           placeholder="¿Cómo te llamas?"
           [value]="nickname()"
           (input)="nickname.set($any($event.target).value)"
+          (keydown)="preview.unlock()"
+          (keydown.enter)="joinRoom()"
         />
 
         <label class="field-label code-label" for="join-code">Código de sala</label>
@@ -206,6 +208,7 @@
           placeholder="ROCK88"
           [value]="joinCode()"
           (input)="setCode($any($event.target).value)"
+          (keydown)="preview.unlock()"
           (keydown.enter)="joinRoom()"
         />
 

@@ -65,8 +65,12 @@ export class GameSessionService implements OnDestroy {
     this.#subs.push(
       this.#sync.status.subscribe((status) => {
         this.connection.set(status);
-        if (status === 'connected' && this.role() === 'player' && !this.#helloSent) {
+        if (status === 'connected' && this.role() === 'player') {
+          // El HELLO se envía cuando el DataChannel ya está abierto. Si se
+          // reenvía tras una reconexión, el host lo ignora por clientId.
           this.#sendHello();
+        } else if (status !== 'connected') {
+          this.#helloSent = false;
         }
       })
     );
@@ -283,7 +287,7 @@ export class GameSessionService implements OnDestroy {
   }
 
   #sendHello(): void {
-    if (this.#helloSent || this.role() !== 'player') return;
+    if (this.#helloSent || this.role() !== 'player' || this.connection() !== 'connected') return;
     this.#sync.publish('HELLO', { nickname: this.nickname() });
     this.#helloSent = true;
   }

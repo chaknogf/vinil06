@@ -147,8 +147,12 @@ export class LobbyComponent {
   }
 
   setCode(value: string): void {
-    this.joinCode.set(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6));
+    const code = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    this.joinCode.set(code);
     this.error.set('');
+    // Al completar los 6 caracteres entramos solos: el botón queda como respaldo
+    // para el caso de venir por enlace (/jugar/CODE) o pegar un código incompleto.
+    if (code.length === 6) this.joinRoom();
   }
 
   setBots(value: number): void {

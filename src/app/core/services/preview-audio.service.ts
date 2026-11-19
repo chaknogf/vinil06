@@ -15,18 +15,24 @@ export class PreviewAudioService {
 
   #element: HTMLAudioElement | null = null;
   #url = '';
+  #unlocked = false;
+  #unlocking = false;
 
-  /** Llamar dentro del tap de "Crear sala" / "Entrar a la sala". */
+  /** Llamar dentro de un gesto del usuario (tap o tecla). Idempotente. */
   unlock(): void {
+    if (this.#unlocked || this.#unlocking) return;
+    this.#unlocking = true;
     const audio = this.#ensure();
     audio.src = SILENT_WAV;
     audio.volume = 0;
     void audio.play()
       .then(() => {
         audio.pause();
+        this.#unlocked = true;
         this.blocked.set(false);
       })
-      .catch(() => this.blocked.set(true));
+      .catch(() => this.blocked.set(true))
+      .finally(() => { this.#unlocking = false; });
   }
 
   /** Reproduce desde el segundo indicado para compensar la latencia de red. */
