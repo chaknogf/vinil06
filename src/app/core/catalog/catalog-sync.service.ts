@@ -53,6 +53,8 @@ function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilT
     const cover = remoteCover.startsWith('https://') ? remoteCover : '';
     const rawUri = typeof raw['spotifyUri'] === 'string' ? raw['spotifyUri'].trim() : '';
     const spotifyUri = rawUri.startsWith('spotify:track:') ? rawUri : '';
+    const rawPreview = typeof raw['previewUrl'] === 'string' ? raw['previewUrl'].trim() : '';
+    const previewUrl = rawPreview.startsWith('https://') ? rawPreview : '';
 
     // Si la URL remota falla al cargar, AlbumArtComponent muestra su SVG local.
     tracks.push({
@@ -66,7 +68,8 @@ function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilT
       palette,
       motif,
       cover: cover || svgCover({ title, artist, palette, motif }),
-      ...(spotifyUri ? { spotifyUri } : {})
+      ...(spotifyUri ? { spotifyUri } : {}),
+      ...(previewUrl ? { previewUrl } : {})
     });
   }
   return tracks;

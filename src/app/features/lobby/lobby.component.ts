@@ -10,6 +10,7 @@ import {
 } from '../../core/data/vinil06-catalog';
 import { GameMode } from '../../core/models/game.models';
 import { GameSessionService } from '../../core/services/game-session.service';
+import { PreviewAudioService } from '../../core/services/preview-audio.service';
 import {
   SpotifyCreateIntent,
   SpotifyHostAudioService
@@ -60,6 +61,7 @@ export class LobbyComponent {
   readonly route = inject(ActivatedRoute);
   readonly catalog = inject(CatalogSyncService);
   readonly spotify = inject(SpotifyHostAudioService);
+  readonly preview = inject(PreviewAudioService);
 
   readonly modes = MODES;
   readonly packs = CATALOG_PACKS;
@@ -98,6 +100,7 @@ export class LobbyComponent {
   }
 
   async createRoom(): Promise<void> {
+    this.preview.unlock();
     const wantsSpotify = this.#wantsSpotifyLogin();
     if (wantsSpotify) {
       // Guardamos solo el formulario (sin tokens) para reanudar tras el redirect.
@@ -133,6 +136,7 @@ export class LobbyComponent {
   }
 
   joinRoom(): void {
+    this.preview.unlock();
     const code = this.joinCode().trim().toUpperCase();
     if (code.length !== 6) {
       this.error.set('El código de sala tiene 6 caracteres.');

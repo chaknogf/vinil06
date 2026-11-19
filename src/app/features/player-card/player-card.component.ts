@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
 import { GamePhase, RoomState } from '../../core/models/game.models';
+import { PreviewAudioService } from '../../core/services/preview-audio.service';
 import { LeaderboardPanelComponent } from '../../shared/components/leaderboard-panel/leaderboard-panel.component';
 import { PodiumComponent } from '../../shared/components/podium/podium.component';
 import { VinylDeckArenaComponent } from './vinyl-deck-arena.component';
@@ -19,7 +20,28 @@ export class PlayerCardComponent {
   readonly clockOffset = input(0);
   readonly canInteract = input(true);
 
+  readonly audio = inject(PreviewAudioService);
   readonly phase = computed<GamePhase>(() => this.state().phase);
+
+  #lastAudioKey = '';
+
+  constructor() {
+    effect(() => {
+      const state = this.state();
+      const listening = state.phase === 'LISTEN_8S' || state.phase === 'KARAOKE_TURN';
+      // El host publica un snapshot cada segundo: solo reaccionamos a cambios
+      // reales de pista/fase para no reiniciar el audio a cada latido.
+      const key = listening ? `${state.phase}|${state.audioUrl ?? ''}` : '';
+      if (key === this.#lastAudioKey) return;
+      this.#lastAudioKey = key;
+      if (!key || !state.audioUrl) {
+        this.audio.stop();
+        return;
+      }
+      const elapsed = Date.now() - this.clockOffset() - state.phaseStartedAt;
+      this.audio.play(state.audioUrl, Math.max(0, elapsed) / 1000);
+    });
+  }
 
   readonly podiumTitle = computed(() => {
     const sorted = [...this.state().players].sort((a, b) => b.score - a.score);

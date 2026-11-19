@@ -19,6 +19,7 @@ import {
 import { createRoomCode, pickOne, randomInt, shuffleArray } from '../utils/random';
 import { AudioService } from './audio.service';
 import { HapticsService } from './haptics.service';
+import { PreviewAudioService } from './preview-audio.service';
 import { SpotifyHostAudioService } from './spotify-host-audio.service';
 
 export const LOCAL_PLAYER_ID = 'host-local-player';
@@ -46,6 +47,7 @@ export class GameEngineService {
   readonly #audio = inject(AudioService);
   readonly #haptics = inject(HapticsService);
   readonly #spotify = inject(SpotifyHostAudioService);
+  readonly #preview = inject(PreviewAudioService);
 
   readonly roomCode = signal('');
   readonly mode = signal<GameMode>('CARDS_12');
@@ -60,6 +62,8 @@ export class GameEngineService {
   readonly karaoke = signal<KaraokeTurn | null>(null);
   /** Canción que el anfitrión debe poner. No viaja en el snapshot de la sala. */
   readonly hostTrack = signal<PublicOption | null>(null);
+  /** Preview audible en TODOS los dispositivos; no revela cuál carta es la correcta. */
+  readonly audioUrl = signal('');
   readonly manual = signal(false);
 
   /** Latece 1 Hz para refrescar hostNow y el desfase de reloj de los clientes. */
@@ -81,7 +85,8 @@ export class GameEngineService {
       players: this.players(),
       results: this.results(),
       karaoke: this.karaoke(),
-      manual: this.manual()
+      manual: this.manual(),
+      audioUrl: this.audioUrl()
     };
   });
 
@@ -154,6 +159,8 @@ export class GameEngineService {
     this.options.set([]);
     this.karaoke.set(null);
     this.hostTrack.set(null);
+    this.audioUrl.set('');
+    this.#preview.stop();
     this.players.update((list) => list.map((p) => ({ ...p, answered: false, lastDelta: 0 })));
 
     const pack = this.#nextPack();
@@ -327,6 +334,10 @@ export class GameEngineService {
     this.phase.set(phase);
     this.phaseStartedAt.set(Date.now());
     this.#tick.update((n) => n + 1);
+    if (phase !== 'LISTEN_8S' && phase !== 'KARAOKE_TURN') {
+      this.audioUrl.set('');
+      this.#preview.stop();
+    }
   }
 
   #schedule(fn: () => void, delayMs: number): void {
@@ -412,8 +423,11 @@ export class GameEngineService {
     const pack = this.#pack ?? this.#nextPack();
     this.options.set(pack.tracks.map(trackToOption));
     this.#enterPhase('LISTEN_8S');
-    // Reproducción automática del host (best-effort): si falla, el cronómetro sigue.
-    void this.#spotify.play(this.hostTrack());
+    const url = pack.tracks[0]?.previewUrl ?? '';
+    this.audioUrl.set(url);
+    // Spotify Premium es opcional; sin él suena el preview de iTunes en cada dispositivo.
+    if (this.#spotify.status() === 'connected') void this.#spotify.play(this.hostTrack());
+    else this.#preview.play(url);
     this.#audio.startBeat(pack.bpm);
     this.#schedule(() => this.#beginFlip(), environment.timings.listenMs);
   }
@@ -442,6 +456,9 @@ export class GameEngineService {
       wildcardsLeft: singer.wildcards
     });
     this.#enterPhase('KARAOKE_TURN');
+    this.audioUrl.set(track.previewUrl ?? '');
+    if (this.#spotify.status() === 'connected') void this.#spotify.play(this.hostTrack());
+    else this.#preview.play(track.previewUrl ?? '');
     this.#audio.flipChime();
     this.#haptics.flip();
     this.#schedule(() => this.finishKaraoke('timeout'), this.karaoke()?.durationMs ?? 18000);

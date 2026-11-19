@@ -41,6 +41,9 @@ function svgCover(title, artist) {
 
 function normalize(result) {
   if (!result.trackId || !result.trackName || !result.artistName) return null;
+  // Sin preview no hay juego: descartamos pistas que no se pueden escuchar.
+  const previewUrl = result.previewUrl;
+  if (typeof previewUrl !== 'string' || !previewUrl.startsWith('https://')) return null;
   const year = Number.parseInt((result.releaseDate ?? '').slice(0, 4), 10);
   const safeYear = Number.isFinite(year) && year > 1900 ? year : 2000;
   const id = `it-${result.trackId}`;
@@ -57,7 +60,8 @@ function normalize(result) {
     bpm: 0,
     palette: [from, to],
     motif: hash(id) % 4,
-    cover: cover.startsWith('https://') ? cover : svgCover(result.trackName, result.artistName)
+    cover: cover.startsWith('https://') ? cover : svgCover(result.trackName, result.artistName),
+    previewUrl
   };
 }
 

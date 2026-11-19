@@ -28,6 +28,8 @@ export interface Track {
   readonly cover?: string;
   /** URI de Spotify (`spotify:track:…`) cuando el catálogo la trae; evita buscar. */
   readonly spotifyUri?: string;
+  /** Preview ~30s de iTunes: permite oír la pista sin cuenta ni API key. */
+  readonly previewUrl?: string;
 }
 
 /** Pista local con portada SVG embebida (`data:image/svg+xml`), sin red. */
@@ -129,6 +131,8 @@ export interface RoomState {
   readonly results: readonly RoundResultEntry[];
   readonly karaoke: KaraokeTurn | null;
   readonly manual: boolean;
+  /** Preview de la pista en curso. No identifica la respuesta: se envía a todos. */
+  readonly audioUrl?: string;
 }
 
 export const TOTAL_ROUNDS = 12;
