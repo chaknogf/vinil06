@@ -1,7 +1,7 @@
 <div class="app-shell">
   @if (session.connection() === 'unavailable' && session.inSession()) {
     <div class="connection-banner" role="status">
-      Sin canal en tiempo real: esta sala sigue en modo local. Usa otra pestaña del mismo navegador.
+      No se pudo conectar con la sala. Si eres invitado, comprueba el código y que el anfitrión tenga Vinil06 abierto.
     </div>
   }
   <app-install-prompt />
