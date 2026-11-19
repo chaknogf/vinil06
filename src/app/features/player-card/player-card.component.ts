@@ -33,7 +33,11 @@ export class PlayerCardComponent {
       const listening = state.phase === 'LISTEN_8S' || state.phase === 'KARAOKE_TURN';
       // El host publica un snapshot cada segundo: solo reaccionamos a cambios
       // reales de pista/fase para no reiniciar el audio a cada latido.
-      const key = listening ? `${state.phase}|${state.audioUrl ?? ''}` : '';
+      // Incluimos la fuente efectiva: si Spotify falla a mitad de escucha y
+      // caemos al preview, hay que volver a evaluar la supresión.
+      const key = listening
+        ? `${state.phase}|${state.audioUrl ?? ''}|${state.hostAudioMode}`
+        : '';
       if (key === this.#lastAudioKey) return;
       this.#lastAudioKey = key;
       // El host ya tiene su fuente (Spotify o YouTube): no duplicamos el preview.

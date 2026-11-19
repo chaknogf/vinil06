@@ -45,10 +45,18 @@ export class HostAudioControllerService {
   readonly youtubeVideoId = signal('');
   readonly notice = signal('');
 
-  /** Modo realmente aplicado: sin Premium conectado caemos a YouTube. */
+  /**
+   * Modo realmente aplicado. Antes caíamos a YouTube aunque no hubiera vídeo,
+   * y el tablero suprimía el preview: silencio total. Ahora YouTube solo se
+   * aplica si hay un ID de vídeo; si no, suena el preview de iTunes.
+   */
   readonly effectiveMode = computed<HostAudioMode>(() => {
-    if (this.mode() !== 'SPOTIFY_PREMIUM') return this.mode();
-    return this.spotify.status() === 'connected' ? 'SPOTIFY_PREMIUM' : 'YOUTUBE';
+    if (this.mode() === 'SPOTIFY_PREMIUM') {
+      const ready = this.spotify.status() === 'connected' && !this.spotify.playbackFailed();
+      if (ready) return 'SPOTIFY_PREMIUM';
+      return this.youtubeVideoId() ? 'YOUTUBE' : 'MANUAL';
+    }
+    return this.youtubeVideoId() ? 'YOUTUBE' : 'MANUAL';
   });
 
   readonly listenDurationMs = computed(() =>
@@ -57,20 +65,31 @@ export class HostAudioControllerService {
 
   readonly spotifyNotice = computed(() => {
     if (this.mode() !== 'SPOTIFY_PREMIUM') return '';
+    if (this.spotify.status() === 'connected' && this.spotify.playbackFailed()) {
+      return 'Spotify no pudo reproducir esta pista. Suena el preview: reintenta el dispositivo o cambia la fuente.';
+    }
     switch (this.spotify.status()) {
       case 'free':
-        return 'Tu Spotify es Free: no podemos controlarlo. Usa YouTube o avanza en manual.';
+        return 'Tu Spotify es Free: no podemos controlarlo. Suena el preview; usa YouTube si quieres vídeo.';
       case 'no-device':
-        return 'Spotify no tiene un dispositivo activo. Usa YouTube o avanza en manual.';
+        return 'Spotify no tiene un dispositivo activo. Suena el preview; abre Spotify o reintenta.';
       case 'error':
       case 'not-configured':
-        return 'Spotify no está disponible. Usa YouTube o avanza en manual.';
+        return 'Spotify no está disponible. Suena el preview; cambia la fuente si quieres.';
       default:
         return '';
     }
   });
 
-  readonly activeNotice = computed(() => this.notice() || this.spotifyNotice());
+  /** Desconexión real de Spotify: instruye el botón «Conectar» del panel. */
+  readonly spotifyDisconnected = computed(
+    () =>
+      this.mode() === 'SPOTIFY_PREMIUM' &&
+      this.spotify.status() !== 'connected' &&
+      this.spotify.status() !== 'connecting'
+  );
+
+  readonly activeNotice = computed(() => this.spotifyNotice() || this.notice());
 
   readonly youtubeSearchUrl = computed(() => {
     const query = this.youtubeQuery().trim() || 'Vinil06 canción';
@@ -81,20 +100,22 @@ export class HostAudioControllerService {
     const id = this.youtubeVideoId();
     // La app retira el iframe al pasar de fase; el autoplay se pide igual para
     // que arranque nada más pulsar el enlace del host.
+    const origin =
+      typeof window === 'undefined' ? '' : `&origin=${encodeURIComponent(window.location.origin)}`;
+    // enablejsapi permite arrancar el vídeo con un postMessage desde el botón
+    // «Tocar para activar audio» cuando el navegador bloquea el autoplay.
     return id
-      ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&playsinline=1&rel=0`
+      ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1${origin}`
       : '';
   });
 
   readonly modeLabel = computed(() => {
-    switch (this.effectiveMode()) {
-      case 'SPOTIFY_PREMIUM':
-        return 'Spotify Premium';
-      case 'YOUTUBE':
-        return 'YouTube';
-      default:
-        return 'Manual';
-    }
+    const selected = this.mode();
+    const base =
+      selected === 'SPOTIFY_PREMIUM' ? 'Spotify Premium' : selected === 'YOUTUBE' ? 'YouTube' : 'Manual';
+    const effective = this.effectiveMode();
+    if (selected === effective) return base;
+    return `${base} → ${effective === 'YOUTUBE' ? 'YouTube' : 'preview iTunes'}`;
   });
 
   setMode(mode: HostAudioMode): void {
@@ -126,10 +147,14 @@ export class HostAudioControllerService {
     // pegó en el tablero (puede hacerlo antes de girar la ruleta).
     const trackVideoId = parseYouTubeId(known.youtubeVideoId ?? '');
     if (trackVideoId) this.youtubeVideoId.set(trackVideoId);
+    const spotifyDown =
+      this.mode() === 'SPOTIFY_PREMIUM' && this.spotify.status() !== 'connected';
     this.notice.set(
-      this.effectiveMode() === 'YOUTUBE' && !this.youtubeVideoId()
-        ? 'YouTube: pega un vídeo o abre la búsqueda. Los invitados ya escuchan el preview.'
-        : ''
+      spotifyDown
+        ? 'Spotify desconectado: suena el preview. Pulsa «Conectar Spotify» o pega un vídeo de YouTube.'
+        : this.mode() === 'YOUTUBE' && !this.youtubeVideoId()
+          ? 'Sin vídeo de YouTube: suena el preview de iTunes. Pega un enlace o abre la búsqueda.'
+          : ''
     );
   }
 

@@ -238,7 +238,8 @@ export class GameEngineService {
     this.players.update((list) =>
       list.map((p) => (p.id === playerId ? { ...p, wildcards: p.wildcards - 1 } : p))
     );
-    const track = trackToOption(this.#takeKaraokeTrack());
+    const sourceTrack = this.#takeKaraokeTrack();
+    const track = trackToOption(sourceTrack);
     this.karaoke.set({
       ...turn,
       track,
@@ -247,6 +248,14 @@ export class GameEngineService {
     });
     this.hostTrack.set(track);
     this.#hostAudio.prepareTrack(track);
+    const mode: HostAudioMode = this.#hostAudio.effectiveMode();
+    if (mode === 'SPOTIFY_PREMIUM') {
+      void this.#spotify.play(track).then((ok) => {
+        if (!ok) this.#playFallback(sourceTrack.previewUrl ?? '', 'Spotify falló: suena el preview del comodín.');
+      });
+    } else if (mode === 'MANUAL') {
+      this.#preview.play(sourceTrack.previewUrl ?? '');
+    }
     this.#audio.flipChime();
     this.#haptics.flip();
   }
@@ -357,6 +366,14 @@ export class GameEngineService {
     }
   }
 
+  /** Última red de seguridad: si la fuente externa falla, que haya sonido. */
+  #playFallback(url: string, message: string): void {
+    const phase = this.phase();
+    if (!url || (phase !== 'LISTEN_8S' && phase !== 'KARAOKE_TURN')) return;
+    this.#hostAudio.warn(message);
+    this.#preview.play(url);
+  }
+
   #schedule(fn: () => void, delayMs: number): void {
     this.#timers.push(setTimeout(fn, delayMs));
   }
@@ -446,25 +463,26 @@ export class GameEngineService {
     this.audioUrl.set(url);
     this.#hostAudio.startListen();
 
+    // La ventana de escucha empieza ya: la latencia de la API no se la come.
+    this.#schedule(() => this.#beginFlip(), this.#hostAudio.listenDurationMs());
+
     const mode: HostAudioMode = this.#hostAudio.effectiveMode();
-    if (mode === 'SPOTIFY_PREMIUM' && this.#spotify.status() === 'connected') {
-      void this.#spotify.play(this.hostTrack());
-    } else if (mode === 'SPOTIFY_PREMIUM') {
-      this.#hostAudio.warn('Spotify no está conectado. Usa YouTube o avanza en manual.');
-      this.#preview.play(url);
+    if (mode === 'SPOTIFY_PREMIUM') {
+      void this.#spotify.play(this.hostTrack()).then((ok) => {
+        if (!ok) {
+          this.#playFallback(url, 'Spotify no pudo reproducir: suena el preview en este dispositivo.');
+        }
+      });
     } else if (mode === 'YOUTUBE') {
-      // El iframe del host suena solo durante la escucha. Si no hay vídeo,
-      // avisamos pero el preview de los invitados sigue corriendo: la ronda avanza.
-      if (!this.#hostAudio.youtubeEmbedUrl()) {
-        this.#hostAudio.warn('Pega un vídeo de YouTube o abre la búsqueda; o revela las cartas.');
-      }
+      // El iframe suena solo durante la escucha; el panel ofrece un botón para
+      // arrancarlo si el navegador bloquea el autoplay.
+      this.#hostAudio.warn('YouTube en marcha. Si no suena, pulsa «Tocar para activar audio».');
     } else {
-      // MANUAL: el host decide; el preview suena en su dispositivo.
+      // Sin fuente externa usable: el preview suena también en el host.
       this.#preview.play(url);
     }
 
     this.#audio.startBeat(pack.bpm);
-    this.#schedule(() => this.#beginFlip(), this.#hostAudio.listenDurationMs());
   }
 
   #startKaraokeTurn(): void {
@@ -494,18 +512,21 @@ export class GameEngineService {
     this.audioUrl.set(track.previewUrl ?? '');
     this.#hostAudio.prepareTrack(track);
     this.#hostAudio.startListen();
-    if (this.#hostAudio.effectiveMode() === 'SPOTIFY_PREMIUM' && this.#spotify.status() === 'connected') {
-      void this.#spotify.play(this.hostTrack());
-    } else if (this.#hostAudio.effectiveMode() === 'YOUTUBE') {
-      if (!this.#hostAudio.youtubeEmbedUrl()) {
-        this.#hostAudio.warn('YouTube listo: pega el vídeo o abre la búsqueda para el karaoke.');
-      }
+    this.#schedule(() => this.finishKaraoke('timeout'), this.karaoke()?.durationMs ?? 18000);
+
+    const url = track.previewUrl ?? '';
+    const mode: HostAudioMode = this.#hostAudio.effectiveMode();
+    if (mode === 'SPOTIFY_PREMIUM') {
+      void this.#spotify.play(this.hostTrack()).then((ok) => {
+        if (!ok) this.#playFallback(url, 'Spotify no pudo reproducir: suena el preview del karaoke.');
+      });
+    } else if (mode === 'YOUTUBE') {
+      this.#hostAudio.warn('YouTube en marcha. Si no suena, pulsa «Tocar para activar audio».');
     } else {
-      this.#preview.play(track.previewUrl ?? '');
+      this.#preview.play(url);
     }
     this.#audio.flipChime();
     this.#haptics.flip();
-    this.#schedule(() => this.finishKaraoke('timeout'), this.karaoke()?.durationMs ?? 18000);
   }
 
   #beginFlip(): void {

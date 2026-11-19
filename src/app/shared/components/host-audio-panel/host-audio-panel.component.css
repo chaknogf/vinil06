@@ -170,6 +170,43 @@
   cursor: pointer;
 }
 
+.yt-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.yt-play {
+  width: 100%;
+  margin-top: 7px;
+  min-height: 38px;
+  color: #6ee7b7;
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.32);
+}
+
+.connect-row {
+  margin-top: 9px;
+}
+
+.btn-connect {
+  width: 100%;
+  min-height: 38px;
+  color: #6ee7b7;
+  background: rgba(52, 211, 153, 0.14);
+  border-color: rgba(52, 211, 153, 0.38);
+}
+
+.spotify-retry {
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+
+.retry-hint {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
 .yt-input {
   flex: 1 1 auto;
   min-width: 0;

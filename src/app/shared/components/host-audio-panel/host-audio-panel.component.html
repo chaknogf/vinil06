@@ -23,6 +23,21 @@
     </div>
   }
 
+  @if (audio.spotifyDisconnected()) {
+    <div class="yt-actions connect-row">
+      <button type="button" class="yt-btn btn-connect" (click)="connectSpotify()">Conectar Spotify</button>
+    </div>
+  }
+
+  @if (spotifyNeedsRetry()) {
+    <div class="yt-actions spotify-retry">
+      <button type="button" class="yt-btn" [disabled]="retrying()" (click)="retrySpotify()">
+        {{ retrying() ? 'Buscando…' : 'Reintentar dispositivo Spotify' }}
+      </button>
+      <span class="retry-hint">Mientras tanto suena el preview.</span>
+    </div>
+  }
+
   @if (track(); as current) {
     <div class="audio-track">
       <span class="audio-cover" aria-hidden="true">
@@ -43,7 +58,7 @@
     </div>
   }
 
-  @if (audio.effectiveMode() === 'YOUTUBE') {
+  @if (showYouTube()) {
     <div class="youtube-block">
       <div class="yt-actions">
         <button type="button" class="yt-btn" (click)="useSuggestedVideo()">Buscar vídeo ↗</button>
@@ -62,15 +77,19 @@
       @if (audio.listening()) {
         @if (youtubeEmbedSrc(); as src) {
           <iframe
+            #ytFrame
             class="yt-frame"
             [src]="src"
             title="YouTube · pista de la ronda"
             allow="autoplay; encrypted-media; picture-in-picture"
             allowfullscreen
           ></iframe>
+          <button type="button" class="yt-btn yt-play" (click)="startYouTube()">
+            ▶ Tocar para activar audio
+          </button>
         } @else {
           <div class="yt-placeholder">
-            Pega un vídeo o pulsa «Buscar vídeo». Mientras tanto, los invitados ya escuchan el preview.
+            Sin vídeo: suena el preview de iTunes. Pega un enlace o pulsa «Buscar vídeo» para usar YouTube.
           </div>
         }
       }

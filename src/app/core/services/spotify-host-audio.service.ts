@@ -79,6 +79,8 @@ export class SpotifyHostAudioService {
   readonly accountEmail = signal('');
   readonly deviceName = signal('');
   readonly playing = signal(false);
+  /** El último play falló: el host debe usar el preview aunque el token siga vivo. */
+  readonly playbackFailed = signal(false);
   readonly message = signal('');
   /** Se enciende al volver del callback PKCE para reanudar la creación de sala. */
   readonly redirectCompleted = signal(false);
@@ -237,6 +239,7 @@ export class SpotifyHostAudioService {
     this.#deviceId = '';
     this.#uriCache.clear();
     this.playing.set(false);
+    this.playbackFailed.set(false);
     this.isPremium.set(false);
     this.accountName.set('');
     this.accountEmail.set('');
@@ -264,16 +267,54 @@ export class SpotifyHostAudioService {
       return false;
     }
 
+    // Un 404 significa que el dispositivo cambió o se durmió (típico en móvil
+    // tras varias rondas). Lo redescubrimos una vez y repetimos la jugada.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await this.#api<void>(
+          `/v1/me/player/play?device_id=${encodeURIComponent(this.#deviceId)}`,
+          { method: 'PUT', body: JSON.stringify({ uris: [uri] }) }
+        );
+        this.playing.set(true);
+        this.playbackFailed.set(false);
+        this.message.set('');
+        return true;
+      } catch (error) {
+        if (attempt === 0 && error instanceof SpotifyApiError && error.status === 404) {
+          if (await this.retryDevice()) continue;
+        }
+        this.#handleError(error);
+        this.playbackFailed.set(true);
+        return false;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Redescubre el dispositivo activo SIN OAuth (no recarga la página ni pierde
+   * la sala). También lo puede pulsar el host desde el panel de audio.
+   */
+  async retryDevice(): Promise<boolean> {
+    if (!this.#accessToken || this.status() === 'free' || this.status() === 'not-configured') {
+      return false;
+    }
     try {
-      await this.#api<void>(
-        `/v1/me/player/play?device_id=${encodeURIComponent(this.#deviceId)}`,
-        { method: 'PUT', body: JSON.stringify({ uris: [uri] }) }
-      );
-      this.playing.set(true);
-      this.message.set('');
+      const devices = await this.#api<DevicesResponse>('/v1/me/player/devices');
+      const device = devices.devices?.find((item) => item.is_active) ?? devices.devices?.[0];
+      if (!device) {
+        this.#set('no-device', 'Spotify no tiene un dispositivo activo. Sigue el preview o abre Spotify.');
+        this.playbackFailed.set(true);
+        return false;
+      }
+      this.#deviceId = device.id;
+      this.deviceName.set(device.name);
+      this.#set('connected', '');
+      this.playbackFailed.set(false);
       return true;
     } catch (error) {
       this.#handleError(error);
+      this.playbackFailed.set(true);
       return false;
     }
   }
