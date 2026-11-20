@@ -11,7 +11,7 @@
         phase() === 'ROUND_RESULT' && selectedId() === card.id && correctId() !== card.id
       "
       [disabled]="!canAnswer()"
-      [style.--flip-delay.ms]="idx * 65"
+      [style.--flip-delay.ms]="idx * 30"
       [attr.aria-label]="labelFor(card, idx)"
       (click)="onSelect(card.id)"
     >

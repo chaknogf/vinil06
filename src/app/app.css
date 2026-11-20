@@ -7,15 +7,66 @@
   min-height: 100dvh;
 }
 
+/* El banner ya reserva el safe-area superior: el .app-column no debe sumarlo otra vez. */
+.app-shell.has-top-banner {
+  --safe-top: 0px;
+}
+
+.notice-banner,
 .connection-banner {
   position: sticky;
   top: 0;
   z-index: 30;
-  padding: 8px 14px calc(8px + env(safe-area-inset-top, 0px));
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Si además hay banner de conexión, ese es el que debe quedarse fijo. */
+.notice-banner.is-stacked {
+  position: static;
+}
+
+.notice-banner {
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(30, 41, 59, 0.95);
+  color: #cbd5e1;
+  border-bottom: 1px solid var(--border);
+}
+
+.notice-dismiss {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+
+.connection-banner {
   background: rgba(120, 53, 15, 0.92);
   color: #fed7aa;
   font-size: 11px;
   font-weight: 700;
   text-align: center;
   letter-spacing: 0.01em;
+}
+
+.connection-retry {
+  margin-left: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+  color: #fed7aa;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(254, 215, 170, 0.4);
+  cursor: pointer;
 }

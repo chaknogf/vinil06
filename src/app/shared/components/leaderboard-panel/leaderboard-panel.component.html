@@ -9,35 +9,70 @@
       @for (entry of podium(); track entry.player.id) {
         <div class="podium-step" [class.step-first]="entry.rank === 1">
           <span class="medal">{{ medal(entry.rank) }}</span>
-          <span class="podium-name truncate">{{ entry.player.name }}</span>
+          <span class="podium-name truncate" [attr.title]="entry.player.name">
+            {{ entry.player.name }}@if (entry.player.isBot) { <small> BOT</small> }
+          </span>
           <strong class="podium-score tabular">{{ entry.player.score }}</strong>
         </div>
       }
     </div>
   }
 
-  <ol class="rows">
-    @for (entry of ranked(); track entry.player.id) {
-      <li
-        class="row"
-        [class.row-me]="entry.player.id === highlightId()"
-        [class.row-first]="entry.rank === 1"
-      >
-        <span class="rank">{{ medal(entry.rank) }}</span>
-        <span class="avatar" [style.background]="entry.player.color" aria-hidden="true"></span>
-        <div class="identity">
-          <span class="name truncate">{{ entry.player.name }}</span>
-          @if (entry.player.answered) {
-            <span class="answered">respondió</span>
-          }
-        </div>
-        @if (entry.delta > 0) {
-          <span class="delta">+{{ entry.delta }}</span>
-        }
-        <strong class="score tabular">{{ entry.player.score }}</strong>
-      </li>
-    } @empty {
-      <li class="empty">El tablero se llena cuando entre la primera persona.</li>
-    }
-  </ol>
+  @if (!ranked().length) {
+    <p class="empty">El tablero se llena cuando entre la primera persona.</p>
+  } @else {
+    <div class="groups">
+      @if (humans().length) {
+        <section class="group" aria-label="Jugadores en la sala">
+          <h3 class="group-label">En la sala</h3>
+          <ol class="rows">
+            @for (entry of humans(); track entry.player.id) {
+              <li
+                class="row"
+                [class.row-me]="entry.player.id === highlightId()"
+                [class.row-first]="entry.rank === 1"
+              >
+                <span class="rank">{{ medal(entry.rank) }}</span>
+                <span class="avatar" [style.background]="entry.player.color" aria-hidden="true"></span>
+                <div class="identity">
+                  <span class="name truncate">{{ entry.player.name }}</span>
+                  @if (entry.player.answered) {
+                    <span class="answered">respondió</span>
+                  }
+                </div>
+                @if (entry.delta > 0) {
+                  <span class="delta">+{{ entry.delta }}</span>
+                }
+                <strong class="score tabular">{{ entry.player.score }}</strong>
+              </li>
+            }
+          </ol>
+        </section>
+      }
+
+      @if (bots().length) {
+        <section class="group" aria-label="Bots del tablero">
+          <h3 class="group-label">Bots del tablero <span>· relleno, no invitados</span></h3>
+          <ol class="rows">
+            @for (entry of bots(); track entry.player.id) {
+              <li class="row is-bot" [class.row-first]="entry.rank === 1">
+                <span class="rank">{{ medal(entry.rank) }}</span>
+                <span class="avatar" [style.background]="entry.player.color" aria-hidden="true"></span>
+                <div class="identity">
+                  <span class="name truncate">{{ entry.player.name }} <span class="bot-tag">BOT</span></span>
+                  @if (entry.player.answered) {
+                    <span class="answered">respondió</span>
+                  }
+                </div>
+                @if (entry.delta > 0) {
+                  <span class="delta">+{{ entry.delta }}</span>
+                }
+                <strong class="score tabular">{{ entry.player.score }}</strong>
+              </li>
+            }
+          </ol>
+        </section>
+      }
+    </div>
+  }
 </section>

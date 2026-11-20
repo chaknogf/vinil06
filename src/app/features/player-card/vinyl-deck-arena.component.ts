@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  signal
+} from '@angular/core';
 import { svgCover, VINIL06_CATALOG } from '../../core/data/vinil06-catalog';
 import {
   ANSWER_DURATION_MS,
@@ -34,6 +42,8 @@ interface RoundFeedback {
   template: `
     @if (roomState(); as state) {
       <section class="deck-shell" [attr.data-phase]="phase()">
+        <span class="sr-only" role="status" aria-live="assertive">{{ phaseAnnouncement() }}</span>
+
         <!-- Cabecera compacta de sala y progreso -->
         <header class="hud-top">
           <div class="round-meta">
@@ -66,6 +76,9 @@ interface RoundFeedback {
               <span>PTS</span>
               <strong class="tabular">{{ localPlayerScore() }}</strong>
             </div>
+            @if (selectionFeedback(); as feedbackText) {
+              <span class="answered-chip" role="status">{{ feedbackText }}</span>
+            }
           </div>
         </header>
 
@@ -96,7 +109,18 @@ interface RoundFeedback {
         }
 
         <!-- Resolución de ronda y puntaje -->
-        @if (phase() === 'ROUND_RESULT') {
+        @if (phase() === 'ROUND_RESULT' && state.karaoke; as karaokeTurn) {
+          <div class="status-banner is-result result-pop" [class.is-win]="feedback().pointsEarned > 0">
+            @if (karaokeTurn.singerId === session.localPlayerId()) {
+              <strong>
+                Tu turno de karaoke ·
+                {{ feedback().pointsEarned > 0 ? '¡Bien cantado! +' + feedback().pointsEarned + ' puntos' : 'pasaste · +0 puntos' }}
+              </strong>
+            } @else {
+              <strong>Turno de {{ karaokeTurn.singerName }} · esperando la siguiente ronda</strong>
+            }
+          </div>
+        } @else if (phase() === 'ROUND_RESULT') {
           <div
             class="status-banner is-result result-pop"
             [class.is-win]="feedback().pointsEarned > 0"
@@ -129,7 +153,7 @@ interface RoundFeedback {
             [year]="state.draw?.decade ?? null"
             [startedAt]="state.phaseStartedAt"
             [clockOffset]="session.clockOffset()"
-            [canInteract]="true"
+            [canInteract]="isSinger()"
             (wildcard)="session.useWildcard()"
             (done)="session.karaokeDone(true)"
           />
@@ -236,11 +260,22 @@ interface RoundFeedback {
       gap: 0.4rem;
     }
 
+    .answered-chip {
+      align-self: center;
+      padding: 0.3rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #6ee7b7;
+      background: rgba(52, 211, 153, 0.14);
+      border: 1px solid rgba(52, 211, 153, 0.35);
+    }
+
     .icon-mini {
       display: grid;
       place-items: center;
-      width: 34px;
-      height: 34px;
+      width: 44px;
+      height: 44px;
       border-radius: 10px;
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -253,7 +288,7 @@ interface RoundFeedback {
     }
 
     .privacy-mini {
-      min-height: 34px;
+      min-height: 44px;
       padding: 0 0.6rem;
       border-radius: 10px;
       font-size: 0.68rem;
@@ -330,6 +365,7 @@ interface RoundFeedback {
 export class VinylDeckArenaComponent {
   readonly session = inject(GameSessionService);
   readonly audio = inject(AudioService);
+  readonly #host = inject(ElementRef<HTMLElement>);
 
   readonly roomState = this.session.viewState;
   readonly phase = computed<GamePhase>(() => this.roomState()?.phase ?? 'LOBBY');
@@ -350,21 +386,26 @@ export class VinylDeckArenaComponent {
     return currentPhase === 'FLIP_6S' || currentPhase === 'ROUND_RESULT';
   });
 
+  /** El turno de karaoke ya lleva su propia barra en la tarjeta: evitar doble timer y doble vibración. */
   readonly showTimer = computed(() => {
     const currentPhase = this.phase();
+    return currentPhase === 'LISTEN_8S' || currentPhase === 'FLIP_6S';
+  });
+
+  /** Tras un karaoke las cartas de la ronda anterior ya no aplican. */
+  readonly showCards = computed(() => {
+    const currentPhase = this.phase();
+    if (currentPhase === 'ROUND_RESULT' && this.roomState()?.karaoke) return false;
     return (
-      currentPhase === 'LISTEN_8S' ||
-      currentPhase === 'FLIP_6S' ||
-      currentPhase === 'KARAOKE_TURN'
+      (currentPhase === 'LISTEN_8S' ||
+        currentPhase === 'FLIP_6S' ||
+        currentPhase === 'ROUND_RESULT') &&
+      this.options().length > 0
     );
   });
 
-  readonly showCards = computed(
-    () =>
-      (this.phase() === 'LISTEN_8S' ||
-        this.phase() === 'FLIP_6S' ||
-        this.phase() === 'ROUND_RESULT') &&
-      this.options().length > 0
+  readonly isSinger = computed(
+    () => this.roomState()?.karaoke?.singerId === this.session.localPlayerId()
   );
 
   readonly timerVariant = computed<TimerVariant>(() => {
@@ -392,6 +433,25 @@ export class VinylDeckArenaComponent {
       default:
         return '¡RESPONDE AHORA! · ORDEN ALEATORIO';
     }
+  });
+
+  /** Un solo anuncio por cambio de fase, sin chatter por frame de los timers. */
+  readonly phaseAnnouncement = computed(() => {
+    switch (this.phase()) {
+      case 'LISTEN_8S': return 'Escucha activa · cartas bloqueadas';
+      case 'FLIP_6S': return 'Responde ahora · 6 segundos';
+      case 'ROUND_RESULT': return 'Ronda cerrada';
+      case 'KARAOKE_TURN': return 'Turno de karaoke';
+      case 'PODIUM': return 'Podio final';
+      default: return 'Sala abierta';
+    }
+  });
+
+  /** Confirmación inmediata del toque: el envío no tiene ACK y 6s son pocos. */
+  readonly selectionFeedback = computed(() => {
+    if (this.selectedTrackId() === null) return '';
+    if (this.session.connection() !== 'connected') return 'Sin conexión · reintentar';
+    return '✓ Respondido · esperando confirmación';
   });
 
   readonly feedback = computed<RoundFeedback>(() => {
@@ -430,17 +490,17 @@ export class VinylDeckArenaComponent {
         return;
       }
 
-      // Fisher-Yates independiente por dispositivo al revelar: nadie copia la pantalla vecina.
-      const reveal = state.phase === 'FLIP_6S' || state.phase === 'ROUND_RESULT';
-      // El key incluye las opciones: al pasar de SPINNING (vacío) a LISTEN_8S (4 cartas)
-      // debe reconstruirse. No incluye la fase para no rebarajar al abrir ROUND_RESULT.
+      // Fisher-Yates independiente por dispositivo, UNA SOLA VEZ por ronda en
+      // cuanto llegan las opciones. Rebarajar al revelar movía las cartas justo
+      // cuando empiezan los 6 segundos y la 4ª tardaba ~755 ms en ser legible.
+      // El orden ya es distinto en cada pantalla, así que se sigue sin copiar.
       const optionIds = state.options.map((option) => option.id).join(',');
-      const key = `${state.roomCode}:${state.roundIndex}:${reveal ? 'reveal' : 'hidden'}:${optionIds}`;
+      const key = `${state.roomCode}:${state.roundIndex}:${optionIds}`;
       if (key === this.#shuffleKey) return;
       this.#shuffleKey = key;
 
       const enriched = state.options.map((option, index) => this.#enrich(option, index));
-      this.options.set(reveal ? shuffleArray(enriched) : enriched);
+      this.options.set(shuffleArray(enriched));
     });
 
     effect(() => {
@@ -452,6 +512,15 @@ export class VinylDeckArenaComponent {
       ) {
         this.selectedTrackId.set(null);
       }
+    });
+
+    // En 360×640 la segunda fila de cartas podía quedar bajo el pliegue justo
+    // al empezar los 6 segundos. Llevamos el arena arriba solo en móvil.
+    effect(() => {
+      if (this.phase() !== 'FLIP_6S' || window.innerWidth >= 480) return;
+      queueMicrotask(() =>
+        this.#host.nativeElement.scrollIntoView({ block: 'start', behavior: 'instant' })
+      );
     });
   }
 

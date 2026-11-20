@@ -1,7 +1,26 @@
-<div class="app-shell">
+<div
+  class="app-shell"
+  [class.has-top-banner]="!!session.notice() || (session.connection() === 'unavailable' && session.inSession())"
+  [attr.inert]="session.privacyVisible() ? '' : null"
+>
+  @if (session.notice()) {
+    <div
+      class="notice-banner"
+      [class.is-stacked]="session.connection() === 'unavailable' && session.inSession()"
+      role="status"
+    >
+      <span>{{ session.notice() }}</span>
+      <button type="button" class="notice-dismiss" aria-label="Cerrar aviso" (click)="session.dismissNotice()">×</button>
+    </div>
+  }
   @if (session.connection() === 'unavailable' && session.inSession()) {
     <div class="connection-banner" role="status">
-      No se pudo conectar con la sala. Si eres invitado, comprueba el código y que el anfitrión tenga Vinil06 abierto.
+      @if (session.role() === 'host') {
+        No pudimos publicar tu sala · los invitados no podrán entrar.
+        <button type="button" class="connection-retry" (click)="session.retryConnection()">Reintentar ahora</button>
+      } @else {
+        No se pudo conectar con la sala. Comprueba el código y que el anfitrión tenga Vinil06 abierto.
+      }
     </div>
   }
   <app-install-prompt />
@@ -10,6 +29,7 @@
 
 <app-ephemeral-privacy-modal
   [visible]="session.privacyVisible()"
+  [error]="spotifyError()"
   (accept)="onAccept()"
   (manual)="onManual()"
   (dismiss)="onDismiss()"

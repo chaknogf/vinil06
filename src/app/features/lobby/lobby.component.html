@@ -93,6 +93,7 @@
           placeholder="Tú (Host)"
           [value]="nickname()"
           (input)="nickname.set($any($event.target).value)"
+          (keydown.enter)="createRoom()"
         />
 
         <div class="field-group">
@@ -186,7 +187,7 @@
           >
             <span>
               <strong>Tablero manual</strong>
-              <small>Avanzas las fases a mano, sin temporizadores ni red.</small>
+              <small>Tablero local, sin red · las fases siguen teniendo tiempo.</small>
             </span>
             <span class="switch" [class.switch-on]="manual()"></span>
           </button>
@@ -197,11 +198,13 @@
         <button
           type="button"
           class="btn btn-primary btn-block"
-          [disabled]="catalog.loading()"
+          [disabled]="catalog.loading() || joining()"
           (click)="createRoom()"
         >
           @if (catalog.loading()) {
             Preparando pack…
+          } @else if (joining()) {
+            Preparando sala…
           } @else if (wantsSpotifyLogin()) {
             Crear sala y conectar Spotify
           } @else {
@@ -230,13 +233,17 @@
           autocomplete="nickname"
           placeholder="¿Cómo te llamas?"
           [attr.aria-required]="true"
+          [attr.aria-invalid]="nickname().length > 0 && !validNickname()"
+          aria-describedby="nickname-help"
           [value]="nickname()"
           (input)="onNickname($any($event.target).value)"
           (keydown)="preview.unlock()"
           (keydown.enter)="joinRoom()"
         />
-        @if (!validNickname()) {
-          <p class="field-hint">Necesitamos tu apodo para mostrarte en el tablero.</p>
+        @if (nickname().length > 0 && !validNickname()) {
+          <p id="nickname-help" class="field-error" role="alert">Escribe al menos 2 caracteres.</p>
+        } @else {
+          <p id="nickname-help" class="field-hint">Necesitamos tu apodo para mostrarte en el tablero.</p>
         }
 
         <label class="field-label code-label" for="join-code">Código de sala</label>
@@ -249,14 +256,19 @@
           autocapitalize="characters"
           maxlength="6"
           placeholder="ROCK88"
+          [attr.aria-required]="true"
+          [attr.aria-invalid]="joinCode().length > 0 && !validCode()"
+          aria-describedby="code-help"
           [value]="joinCode()"
           (input)="setCode($any($event.target).value)"
           (keydown)="preview.unlock()"
           (keydown.enter)="joinRoom()"
         />
 
-        @if (joinCode().length !== 6) {
-          <p class="field-hint">Escribe el código de 6 caracteres que te pasó el anfitrión.</p>
+        @if (joinCode().length > 0 && !validCode()) {
+          <p id="code-help" class="field-error" role="alert">El código debe tener 6 letras o números.</p>
+        } @else {
+          <p id="code-help" class="field-hint">Escribe el código de 6 caracteres que te pasó el anfitrión.</p>
         }
 
         @if (error()) {
@@ -267,6 +279,8 @@
           <button type="button" class="btn btn-primary btn-block join-btn" (click)="joinRoom()">
             Entrar a la sala
           </button>
+        } @else if (joining()) {
+          <button type="button" class="btn btn-primary btn-block join-btn" disabled>Entrando…</button>
         }
         <p class="join-note">
           Sin registro ni inicio de sesión: como jugador no conectas Spotify. Tu apodo vive solo en memoria.

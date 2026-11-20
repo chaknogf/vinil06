@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { GameSessionService } from './core/services/game-session.service';
 import { SpotifyHostAudioService } from './core/services/spotify-host-audio.service';
@@ -16,6 +16,7 @@ import { InstallPromptComponent } from './shared/components/install-prompt/insta
 export class App {
   readonly session = inject(GameSessionService);
   readonly spotify = inject(SpotifyHostAudioService);
+  readonly spotifyError = signal('');
 
   constructor() {
     // Si el navegador vuelve del flow PKCE, canjea el código y vuelve al lobby.
@@ -26,13 +27,21 @@ export class App {
    * El modal se muestra antes de activar el tablero. Si el host pidió Spotify,
    * aceptar deriva al login; la sala se activa sola al volver del callback.
    */
-  onAccept(): void {
+  async onAccept(): Promise<void> {
     if (
       this.session.pendingConnectSpotify() &&
       this.spotify.configured &&
       this.spotify.status() !== 'connected'
     ) {
-      void this.spotify.connect();
+      this.spotifyError.set('');
+      await this.spotify.connect();
+      // connect() navega al login; si falla antes, antes el modal se cerraba
+      // sin sala y sin explicación. Mostramos el error y dejamos la salida manual.
+      if (this.spotify.status() === 'error') {
+        this.spotifyError.set(
+          this.spotify.message() || 'No se pudo conectar con Spotify. Puedes seguir en modo manual.'
+        );
+      }
       return;
     }
     this.session.activateHost();
@@ -45,6 +54,7 @@ export class App {
 
   onDismiss(): void {
     this.spotify.clearCreateIntent();
+    this.spotifyError.set('');
     this.session.closePrivacy();
   }
 }

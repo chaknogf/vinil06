@@ -116,7 +116,8 @@ export class GameEngineService {
     includeSelf: boolean,
     botNames: readonly string[],
     manual: boolean,
-    tracks?: readonly VinilTrack[]
+    tracks?: readonly VinilTrack[],
+    hostNickname = 'Tú (Host)'
   ): string {
     this.reset();
     // Sala nueva: descartar vídeo/avisos de la partida anterior (modo y tiempo
@@ -131,7 +132,7 @@ export class GameEngineService {
     const players: Player[] = [
       ...(includeSelf
         ? [
-            this.#makePlayer(LOCAL_PLAYER_ID, 'Tú (Host)', 0, false, true)
+            this.#makePlayer(LOCAL_PLAYER_ID, hostNickname.trim().slice(0, 18) || 'Tú (Host)', 0, false, true)
           ]
         : []),
       ...botNames.map((name, i) => this.#makePlayer(`bot-${i + 1}`, name, i + 1, true, true))
@@ -488,6 +489,10 @@ export class GameEngineService {
   #startKaraokeTurn(): void {
     const track = this.#previewTrack ?? this.#takeKaraokeTrack();
     this.#previewTrack = null;
+    // Las cartas de la ronda anterior no deben reaparecer en el ROUND_RESULT
+    // que viene después del karaoke, ni filtrarse como "respuesta correcta".
+    this.options.set([]);
+    this.correctId.set(null);
     const singer =
       this.players().find((p) => p.name === this.draw()?.singer) ??
       this.players().find((p) => !p.isBot) ??

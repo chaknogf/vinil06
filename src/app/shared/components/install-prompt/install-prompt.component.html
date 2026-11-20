@@ -5,7 +5,9 @@
       <strong>Instalar Vinil06</strong>
       <span>Abre la app al instante, incluso sin red.</span>
     </div>
-    <button type="button" class="install-btn" (click)="install()">Instalar</button>
+    <button type="button" class="install-btn" [disabled]="installing()" (click)="install()">
+      {{ installing() ? 'Instalando…' : 'Instalar' }}
+    </button>
     <button type="button" class="install-close" aria-label="Cerrar aviso" (click)="dismiss()">×</button>
   </aside>
 }

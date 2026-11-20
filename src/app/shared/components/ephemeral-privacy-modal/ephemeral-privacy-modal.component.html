@@ -1,7 +1,8 @@
 @if (visible()) {
-  <div class="backdrop" (keydown)="onKeydown($event)">
+  <div class="backdrop">
     <section
       class="panel glass-panel"
+      (keydown)="onKeydown($event)"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ephemeral-title"
@@ -41,6 +42,10 @@
           (<code>pagehide</code> / <code>beforeunload</code>) o al finalizar la sala.
         </p>
       </div>
+
+      @if (error()) {
+        <p class="modal-error" role="alert">{{ error() }}</p>
+      }
 
       <div class="actions">
         <button #acceptButton type="button" class="btn btn-primary btn-block" (click)="accept.emit()">

@@ -56,6 +56,10 @@
   border-color: rgba(251, 191, 36, 0.42);
 }
 
+.rank-me {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .rank-medal {
   font-size: 18px;
   width: 26px;

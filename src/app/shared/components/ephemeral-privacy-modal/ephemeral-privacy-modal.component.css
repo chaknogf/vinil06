@@ -92,8 +92,19 @@
   gap: 0.6rem;
 }
 
+.modal-error {
+  margin-top: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fecdd3;
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(251, 113, 133, 0.32);
+}
+
 .text-btn {
-  min-height: 38px;
+  min-height: 44px;
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--text-dim);

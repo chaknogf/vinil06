@@ -7,6 +7,7 @@ import { GameEngineService, LOCAL_PLAYER_ID } from './game-engine.service';
 
 export interface HostSetup {
   readonly mode: GameMode;
+  readonly nickname?: string;
   readonly includeSelf: boolean;
   readonly botNames: readonly string[];
   readonly manual: boolean;
@@ -32,6 +33,8 @@ export class GameSessionService implements OnDestroy {
   readonly roomCode = signal('');
   readonly connection = signal<ConnectionStatus>('idle');
   readonly privacyVisible = signal(false);
+  /** Aviso persistente del lobby (p. ej. tras cancelar la creación de sala). */
+  readonly notice = signal('');
   /** true mientras el modal debe derivar al login de Spotify antes de activar. */
   readonly pendingConnectSpotify = signal(false);
   readonly remoteState = signal<RoomState | null>(null);
@@ -110,13 +113,22 @@ export class GameSessionService implements OnDestroy {
 
     this.#subs.push(
       this.#sync.ofType('WILDCARD').subscribe((message) => {
-        if (this.role() === 'host') this.#engine.useWildcard(message.clientId);
+        if (this.role() !== 'host') return;
+        // Solo el cantante puede gastar el comodín de su turno.
+        if (message.clientId === this.#engine.karaoke()?.singerId) {
+          this.#engine.useWildcard(message.clientId);
+        }
       })
     );
 
     this.#subs.push(
-      this.#sync.ofType('KARAOKE_DONE').subscribe(() => {
-        if (this.role() === 'host') this.#engine.finishKaraoke('done');
+      this.#sync.ofType('KARAOKE_DONE').subscribe((message) => {
+        if (this.role() !== 'host') return;
+        // El envelope trae clientId: sin esta guarda cualquier invitado podía
+        // cerrar el turno ajeno y regalarle +2 al cantante.
+        if (message.clientId === this.#engine.karaoke()?.singerId) {
+          this.#engine.finishKaraoke(message.payload.wildcardUsed ? 'pass' : 'done');
+        }
       })
     );
 
@@ -155,12 +167,21 @@ export class GameSessionService implements OnDestroy {
   /** Paso 1: el host elige opciones; el modal bloqueante se muestra antes de activar. */
   requestHost(setup: HostSetup): void {
     this.#pendingHost = setup;
+    this.notice.set('');
     this.pendingConnectSpotify.set(setup.connectSpotify === true);
     this.privacyVisible.set(true);
   }
 
   closePrivacy(): void {
     this.privacyVisible.set(false);
+    if (this.#pendingHost) {
+      this.#pendingHost = null;
+      this.notice.set('No se creó la sala. Pulsa «Crear sala» cuando quieras.');
+    }
+  }
+
+  dismissNotice(): void {
+    this.notice.set('');
   }
 
   /** Paso 2a: acepta la transparencia y activa el tablero sincronizado. */
@@ -289,6 +310,7 @@ export class GameSessionService implements OnDestroy {
   #commitHost(manual: boolean): void {
     const setup = this.#pendingHost;
     this.privacyVisible.set(false);
+    this.notice.set('');
     this.pendingConnectSpotify.set(false);
     // El host puede volver a abrir el aviso desde el tablero: sin setup pendiente,
     // sus botones solo lo cierran (no reinician la sala).
@@ -301,7 +323,8 @@ export class GameSessionService implements OnDestroy {
       setup.includeSelf,
       setup.botNames,
       manual || setup.manual,
-      setup.tracks
+      setup.tracks,
+      setup.nickname
     );
     this.roomCode.set(code);
     this.#pendingHost = null;

@@ -7,6 +7,7 @@ import {
   Track
 } from '../models/game.models';
 import { SpotifyHostAudioService } from './spotify-host-audio.service';
+import { YoutubeHostAudioService } from './youtube-host-audio.service';
 
 const DEFAULT_LISTEN_SEC = 8;
 
@@ -35,6 +36,7 @@ export function parseYouTubeId(raw: string): string {
 @Injectable({ providedIn: 'root' })
 export class HostAudioControllerService {
   readonly spotify = inject(SpotifyHostAudioService);
+  readonly youtube = inject(YoutubeHostAudioService);
 
   readonly mode = signal<HostAudioMode>('MANUAL');
   /** Segundos de escucha elegidos por el host (8..15, paso de 0.5s). */

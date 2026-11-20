@@ -32,6 +32,47 @@
   white-space: nowrap;
 }
 
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.group-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.group-label span {
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #64748b;
+}
+
+.bot-tag {
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 0.55rem;
+  font-weight: 900;
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.16);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+}
+
+.podium-name small {
+  font-size: 0.55rem;
+  color: #c4b5fd;
+}
+
+.row.is-bot {
+  background: rgba(139, 92, 246, 0.06);
+}
+
 .podium-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { PublicOption } from '../models/game.models';
+import { pkceChallenge, randomBase64Url } from '../utils/pkce';
 
 export type SpotifyHostStatus =
   | 'idle'
@@ -120,14 +121,12 @@ export class SpotifyHostAudioService {
     }
 
     try {
-      const verifier = this.#randomBase64Url(32);
-      const state = this.#randomBase64Url(16);
+      const verifier = randomBase64Url(32);
+      const state = randomBase64Url(16);
       sessionStorage.setItem(VERIFIER_KEY, verifier);
       sessionStorage.setItem(STATE_KEY, state);
 
-      const challenge = this.#base64Url(
-        new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)))
-      );
+      const challenge = await pkceChallenge(verifier);
 
       const params = new URLSearchParams({
         response_type: 'code',
@@ -352,18 +351,6 @@ export class SpotifyHostAudioService {
   #clearPkce(): void {
     sessionStorage.removeItem(VERIFIER_KEY);
     sessionStorage.removeItem(STATE_KEY);
-  }
-
-  #randomBase64Url(bytes: number): string {
-    const values = new Uint8Array(bytes);
-    crypto.getRandomValues(values);
-    return this.#base64Url(values);
-  }
-
-  #base64Url(bytes: Uint8Array): string {
-    let binary = '';
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
   async #exchangeCode(code: string, verifier: string): Promise<TokenResponse> {

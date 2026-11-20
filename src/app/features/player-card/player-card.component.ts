@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
-import { GamePhase, RoomState } from '../../core/models/game.models';
+import { comparePlayersByRank, GamePhase, RoomState } from '../../core/models/game.models';
 import { PreviewAudioService } from '../../core/services/preview-audio.service';
 import { LeaderboardPanelComponent } from '../../shared/components/leaderboard-panel/leaderboard-panel.component';
 import { PodiumComponent } from '../../shared/components/podium/podium.component';
@@ -24,6 +24,15 @@ export class PlayerCardComponent {
 
   readonly audio = inject(PreviewAudioService);
   readonly phase = computed<GamePhase>(() => this.state().phase);
+  readonly audioPhase = computed(() =>
+    this.phase() === 'LISTEN_8S' ||
+    this.phase() === 'FLIP_6S' ||
+    this.phase() === 'KARAOKE_TURN'
+  );
+  /** Sin preview el jugador oía silencio mientras las cartas decían "ESCUCHANDO…". */
+  readonly showNoPreview = computed(
+    () => this.audioPhase() && !this.state().audioUrl && !this.suppressPreview()
+  );
 
   #lastAudioKey = '';
 
@@ -54,7 +63,7 @@ export class PlayerCardComponent {
   }
 
   readonly podiumTitle = computed(() => {
-    const sorted = [...this.state().players].sort((a, b) => b.score - a.score);
+    const sorted = [...this.state().players].sort(comparePlayersByRank);
     const index = sorted.findIndex((player) => player.id === this.clientId());
     if (index === 0) return '¡Ganaste la partida!';
     if (index >= 0) return `¡${sorted[0]?.name ?? 'La sala'} lidera el podio!`;
@@ -62,7 +71,7 @@ export class PlayerCardComponent {
   });
 
   readonly podiumSubtitle = computed(() => {
-    const sorted = [...this.state().players].sort((a, b) => b.score - a.score);
+    const sorted = [...this.state().players].sort(comparePlayersByRank);
     const index = sorted.findIndex((player) => player.id === this.clientId());
     const me = sorted[index];
     if (!me) return 'Así quedó el marcador tras las 12 rondas.';

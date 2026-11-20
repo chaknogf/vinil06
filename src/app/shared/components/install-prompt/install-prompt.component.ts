@@ -21,6 +21,7 @@ interface BeforeInstallPromptEvent extends Event {
 })
 export class InstallPromptComponent {
   readonly visible = signal(false);
+  readonly installing = signal(false);
   #deferred: BeforeInstallPromptEvent | null = null;
 
   constructor() {
@@ -44,13 +45,15 @@ export class InstallPromptComponent {
 
   async install(): Promise<void> {
     const event = this.#deferred;
-    if (!event) {
+    if (!event || this.installing()) {
       this.visible.set(false);
       return;
     }
+    this.installing.set(true);
     await event.prompt();
     await event.userChoice.catch(() => undefined);
     this.#deferred = null;
+    this.installing.set(false);
     this.visible.set(false);
   }
 

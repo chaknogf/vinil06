@@ -4,6 +4,8 @@
 
 .host-column {
   max-width: 980px;
+  /* El action-dock sticky ya reserva el safe-area inferior. */
+  --safe-bottom: 0px;
 }
 
 .host-header {
@@ -32,8 +34,9 @@
 }
 
 .privacy-btn {
-  min-height: 38px;
+  min-height: 44px;
   padding: 7px 10px;
+  cursor: pointer;
   border-radius: 10px;
   font-size: 10px;
   font-weight: 800;
@@ -68,11 +71,23 @@
   font-weight: 800;
 }
 
+.connection-chip {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fda4af;
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(251, 113, 133, 0.3);
+}
+
 .presence-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 36px;
+  min-height: 44px;
+  cursor: pointer;
+  font-family: inherit;
   padding: 6px 10px;
   border-radius: 10px;
   font-size: 11px;
@@ -95,11 +110,18 @@
 
 .presence-warn {
   color: #fda4af;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.presence-pop {
+  margin-top: 8px;
 }
 
 .invite-btn {
-  min-height: 36px;
+  min-height: 44px;
   padding: 6px 10px;
+  cursor: pointer;
   border-radius: 10px;
   font-size: 11px;
   font-weight: 800;
@@ -162,6 +184,19 @@
 
 .action-grid.manual {
   grid-template-columns: 1fr;
+}
+
+.host-timer {
+  display: block;
+}
+
+.action-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: 12px;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(11, 13, 20, 0), rgba(11, 13, 20, 0.96) 28%);
 }
 
 .main-action {

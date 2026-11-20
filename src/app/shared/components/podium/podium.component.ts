@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { Player } from '../../../core/models/game.models';
+import { comparePlayersByRank, Player } from '../../../core/models/game.models';
 
 @Component({
   selector: 'app-podium',
@@ -13,12 +13,11 @@ export class PodiumComponent {
   readonly subtitle = input('Así quedó el marcador tras las 12 rondas.');
   readonly actionLabel = input('Jugar otra partida (limpiar memoria)');
   readonly showAction = input(false);
+  readonly highlightId = input('');
 
   readonly newGame = output<void>();
 
-  readonly ranked = computed(() =>
-    [...this.players()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-  );
+  readonly ranked = computed(() => [...this.players()].sort(comparePlayersByRank));
 
   readonly winner = computed(() => this.ranked()[0]);
 

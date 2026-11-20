@@ -6,7 +6,7 @@ import {
   input,
   signal
 } from '@angular/core';
-import { RoomState } from '../../core/models/game.models';
+import { ANSWER_DURATION_MS, GamePhase, RoomState } from '../../core/models/game.models';
 import { AudioService } from '../../core/services/audio.service';
 import { GameSessionService } from '../../core/services/game-session.service';
 import { LOCAL_PLAYER_ID } from '../../core/services/game-engine.service';
@@ -14,6 +14,7 @@ import { HostAudioPanelComponent } from '../../shared/components/host-audio-pane
 import { KaraokeRouletteCardComponent } from '../../shared/components/karaoke-roulette-card/karaoke-roulette-card.component';
 import { LeaderboardPanelComponent } from '../../shared/components/leaderboard-panel/leaderboard-panel.component';
 import { PodiumComponent } from '../../shared/components/podium/podium.component';
+import { RoundTimerBarComponent } from '../../shared/components/round-timer-bar/round-timer-bar.component';
 import { RouletteComponent } from '../../shared/components/roulette/roulette.component';
 import { PlayerCardComponent } from '../player-card/player-card.component';
 
@@ -25,7 +26,8 @@ import { PlayerCardComponent } from '../player-card/player-card.component';
     PodiumComponent,
     PlayerCardComponent,
     KaraokeRouletteCardComponent,
-    HostAudioPanelComponent
+    HostAudioPanelComponent,
+    RoundTimerBarComponent
   ],
   templateUrl: './host-board.component.html',
   styleUrl: './host-board.component.css',
@@ -38,6 +40,8 @@ export class HostBoardComponent {
 
   readonly view = signal<'control' | 'cards'>('control');
   readonly copied = signal(false);
+  readonly copyError = signal(false);
+  readonly presenceOpen = signal(false);
 
   readonly phase = computed(() => this.state().phase);
   readonly localPlayerId = computed(() => {
@@ -60,7 +64,7 @@ export class HostBoardComponent {
       case 'PODIUM':
         return 'Jugar otra partida';
       default:
-        return 'Ronda en curso…';
+        return `Ronda en curso · ${this.phaseLabel()}`;
     }
   });
 
@@ -98,17 +102,55 @@ export class HostBoardComponent {
     return labels[this.phase()] ?? this.phase();
   }
 
+  /** Cronómetro del anfitrión: antes no había cuenta atrás en escucha/respuesta. */
+  readonly showHostTimer = computed(
+    () => this.phase() === 'LISTEN_8S' || this.phase() === 'FLIP_6S'
+  );
+  readonly hostTimerDuration = computed(() =>
+    this.phase() === 'LISTEN_8S'
+      ? this.state().listenDurationMs
+      : ANSWER_DURATION_MS
+  );
+  readonly hostTimerVariant = computed<'listen' | 'flip'>(() =>
+    this.phase() === 'LISTEN_8S' ? 'listen' : 'flip'
+  );
+  readonly hostTimerLabel = computed(() =>
+    this.phase() === 'LISTEN_8S'
+      ? `ESCUCHA (${this.listenLabel()}) · CARTAS BLOQUEADAS`
+      : 'RESPONDE AHORA · 6s'
+  );
+
+  /** Anuncio único por cambio de fase (los timers siguen con aria-live="off"). */
+  readonly phaseAnnouncement = computed(() => {
+    switch (this.phase() as GamePhase) {
+      case 'LISTEN_8S': return `Escucha activa · ${this.listenLabel()}`;
+      case 'FLIP_6S': return 'Responde ahora · 6 segundos';
+      case 'ROUND_RESULT': return 'Ronda cerrada';
+      case 'KARAOKE_TURN': return 'Turno de karaoke en curso';
+      case 'PODIUM': return 'Podio final';
+      default: return this.phaseLabel();
+    }
+  });
+
   mainAction(): void {
+    // En la última ronda el botón dice "Ver podio final": debe terminar la
+    // partida, no girar una ronda 13. showPodium() ya existe en el motor.
+    if (this.phase() === 'ROUND_RESULT' && this.isLastRound()) {
+      this.session.showPodium();
+      return;
+    }
     this.session.advance();
   }
 
   async copyCode(): Promise<void> {
+    this.copyError.set(false);
     try {
       await navigator.clipboard.writeText(this.session.copyInviteLink());
       this.copied.set(true);
       setTimeout(() => this.copied.set(false), 1800);
     } catch {
-      this.copied.set(false);
+      // Antes fallaba en silencio: el host creía que ya compartió el enlace.
+      this.copyError.set(true);
     }
   }
 

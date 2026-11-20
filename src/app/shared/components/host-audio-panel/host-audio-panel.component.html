@@ -3,7 +3,7 @@
     <span class="eyebrow">Anfitrión · audio</span>
     <span
       class="status-chip"
-      [class.is-ok]="audio.effectiveMode() === 'YOUTUBE' && !!audio.youtubeVideoId()"
+      [class.is-ok]="statusOk()"
       [class.is-warn]="needsAttention()"
     >
       <span class="status-dot" aria-hidden="true"></span>
@@ -20,6 +20,10 @@
     <div class="notice" role="status">
       <span>{{ notice }}</span>
       <button type="button" class="notice-close" aria-label="Cerrar aviso" (click)="audio.dismissNotice()">×</button>
+    </div>
+  } @else if (successNotice()) {
+    <div class="notice is-ok" role="status">
+      <span>{{ successNotice() }}</span>
     </div>
   }
 
@@ -60,12 +64,66 @@
 
   @if (showYouTube()) {
     <div class="youtube-block">
+      <div class="yt-account">
+        @if (audio.youtube.configured) {
+          @if (audio.youtube.connected()) {
+            <div class="yt-account-head">
+              <span class="yt-account-ok">● YouTube conectado</span>
+              <button type="button" class="yt-btn" [disabled]="audio.youtube.loading()" (click)="refreshYouTube()">
+                {{ audio.youtube.loading() ? 'Cargando…' : 'Actualizar' }}
+              </button>
+              <button type="button" class="yt-btn" (click)="disconnectYouTube()">Desconectar</button>
+            </div>
+
+            @if (audio.youtube.videos().length) {
+              <div class="yt-video-list" role="group" aria-label="Tus vídeos de YouTube">
+                @for (video of audio.youtube.videos(); track video.id) {
+                  <button
+                    type="button"
+                    class="yt-video"
+                    [class.is-picked]="audio.youtubeVideoId() === video.id"
+                    [attr.aria-pressed]="audio.youtubeVideoId() === video.id"
+                    (click)="pickYouTubeVideo(video.id)"
+                  >
+                    @if (video.thumbnail) {
+                      <img [src]="video.thumbnail" alt="" aria-hidden="true" loading="lazy" />
+                    }
+                    <span class="yt-video-copy">
+                      <strong>{{ video.title }}</strong>
+                      @if (video.channel) { <small>{{ video.channel }}</small> }
+                    </span>
+                  </button>
+                }
+              </div>
+            } @else if (!audio.youtube.loading()) {
+              <p class="yt-account-msg">Todavía no aparecen vídeos subidos en tu cuenta.</p>
+            }
+          } @else {
+            <button
+              type="button"
+              class="yt-btn btn-connect"
+              [disabled]="audio.youtube.status() === 'connecting'"
+              (click)="connectYouTube()"
+            >
+              {{ audio.youtube.status() === 'connecting' ? 'Abriendo Google…' : 'Conectar YouTube' }}
+            </button>
+          }
+
+          @if (audio.youtube.message()) {
+            <p class="yt-account-msg" role="status">{{ audio.youtube.message() }}</p>
+          }
+        } @else {
+          <p class="yt-account-msg">Login de YouTube no configurado en esta instalación · pegá un enlace.</p>
+        }
+      </div>
+
+      <p class="yt-or">o pegá un enlace manualmente</p>
       <div class="yt-actions">
         <button type="button" class="yt-btn" (click)="useSuggestedVideo()">Buscar vídeo ↗</button>
         <input
           class="yt-input"
           type="text"
-          placeholder="Pega un enlace o ID de YouTube"
+          placeholder="https://youtu.be/… o ID de 11 caracteres"
           aria-label="Enlace o ID de YouTube"
           [value]="youtubeInput()"
           (input)="youtubeInput.set($any($event.target).value)"

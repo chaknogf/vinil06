@@ -1,8 +1,14 @@
 <div class="app-column deck-page">
-  @if (audio.blocked() && (phase() === 'LISTEN_8S' || phase() === 'KARAOKE_TURN')) {
-    <button type="button" class="audio-unlock" (click)="audio.retry()">
-      ▶ Tocar para escuchar
-    </button>
+  @if (audioPhase()) {
+    <!-- Slot reservado: al pasar a FLIP el botón no desaparece moviendo las cartas. -->
+    <div class="audio-slot" [class.is-hidden]="!audio.blocked()">
+      <button type="button" class="audio-unlock" (click)="audio.retry()">
+        ▶ Tocar para escuchar
+      </button>
+    </div>
+    @if (showNoPreview()) {
+      <p class="no-preview" role="status">Sin preview disponible · atento al anfitrión</p>
+    }
   }
   <app-vinyl-deck-arena />
 
@@ -11,8 +17,10 @@
       [players]="state().players"
       [title]="podiumTitle()"
       [subtitle]="podiumSubtitle()"
+      [highlightId]="clientId()"
       [showAction]="false"
     />
+    <p class="podium-wait" role="status">Esperando a que el anfitrión inicie otra partida…</p>
   } @else if (phase() !== 'LOBBY') {
     <app-leaderboard-panel
       [players]="state().players"

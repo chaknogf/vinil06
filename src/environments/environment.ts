@@ -51,5 +51,20 @@ export const environment = {
   spotify: {
     clientId: 'fba39884cee24a938f7579b33b9cf1aa' as string,
     redirectPath: '/spotify/callback'
+  },
+
+  /**
+   * YouTube para el host: Google Identity Services (token model) + Data API v3.
+   * - clientId: OAuth Client ID web de Google (orígenes autorizados:
+   *   http://127.0.0.1:4200 y https://vinil06.vercel.app).
+   * - apiKey: clave pública; RESTRINGIR en Google Cloud a:
+   *   · API: YouTube Data API v3
+   *   · Sitios web: http://127.0.0.1:4200/* y https://vinil06.vercel.app/*
+   * - GIS no usa client_secret ni redirect URI propia: el token se entrega al
+   *   callback de JS y vive solo en memoria.
+   */
+  youtube: {
+    clientId: '365995761449-0tl4rq1dd3rgi563rlh2g7g0kgsfctr5.apps.googleusercontent.com' as string,
+    apiKey: 'AIzaSyCdWDdtylzp2DWIzrI-pBSwmqGAcRmkFYM' as string
   }
 };

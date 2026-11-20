@@ -14,7 +14,7 @@
   --border-strong: rgba(255, 255, 255, 0.16);
   --text: #f8fafc;
   --text-muted: #9aa7b8;
-  --text-dim: #64748b;
+  --text-dim: #94a3b8;
   --accent: #34d399;
   --accent-strong: #10b981;
   --accent-soft: rgba(16, 185, 129, 0.15);
@@ -251,8 +251,8 @@ h1, h2, h3, p {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
@@ -291,7 +291,7 @@ h1, h2, h3, p {
 }
 
 .field::placeholder {
-  color: #526074;
+  color: #7c8ba1;
 }
 
 .field:focus {
@@ -309,6 +309,13 @@ h1, h2, h3, p {
 
 .field-error {
   border-color: rgba(251, 113, 133, 0.65);
+}
+
+p.field-error {
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 6px;
 }
 
 .error-text {
@@ -330,7 +337,7 @@ h1, h2, h3, p {
 }
 
 .segmented button {
-  min-height: 38px;
+  min-height: 44px;
   border-radius: 10px;
   font-size: 12px;
   font-weight: 800;

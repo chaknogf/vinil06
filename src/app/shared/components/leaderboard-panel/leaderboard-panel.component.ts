@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { Player, RoundResultEntry } from '../../../core/models/game.models';
+import { comparePlayersByRank, Player, RoundResultEntry } from '../../../core/models/game.models';
 
 interface RankedPlayer {
   readonly player: Player;
@@ -26,13 +26,17 @@ export class LeaderboardPanelComponent {
   readonly ranked = computed<RankedPlayer[]>(() => {
     const deltas = new Map(this.results().map((result) => [result.playerId, result.points]));
     return [...this.players()]
-      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+      .sort(comparePlayersByRank)
       .map((player, index) => ({
         player,
         rank: index + 1,
         delta: deltas.get(player.id) ?? 0
       }));
   });
+
+  /** Bots y personas comparten ranking, pero se muestran en bloques separados. */
+  readonly humans = computed(() => this.ranked().filter((entry) => !entry.player.isBot));
+  readonly bots = computed(() => this.ranked().filter((entry) => entry.player.isBot));
 
   readonly podium = computed(() => this.ranked().slice(0, 3));
 

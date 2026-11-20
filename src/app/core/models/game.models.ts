@@ -90,6 +90,10 @@ export interface Player {
   readonly answered: boolean;
 }
 
+/** Orden único para marcador y podio: puntos y, en empate, nombre. */
+export const comparePlayersByRank = (a: Player, b: Player): number =>
+  b.score - a.score || a.name.localeCompare(b.name);
+
 export interface RoundResultEntry {
   readonly playerId: string;
   readonly name: string;

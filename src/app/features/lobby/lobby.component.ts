@@ -106,12 +106,16 @@ export class LobbyComponent {
   readonly includeSelf = signal(true);
   readonly manual = signal(false);
   readonly error = signal('');
+  readonly joining = signal(false);
 
   readonly inSession = computed(() => this.session.inSession());
   readonly selectedMode = computed(() => MODES.find((m) => m.id === this.mode()) ?? MODES[0]!);
   /** El apodo es obligatorio para entrar: sin él no se abre ninguna conexión. */
   readonly validNickname = computed(() => this.nickname().trim().length >= 2);
-  readonly canJoin = computed(() => this.validNickname() && this.joinCode().length === 6);
+  readonly validCode = computed(() => /^[A-Z0-9]{6}$/.test(this.joinCode()));
+  readonly canJoin = computed(
+    () => this.validNickname() && this.validCode() && !this.joining() && !this.inSession()
+  );
   /** Solo pedimos login si el host eligió Premium y aún no está conectado. */
   readonly wantsSpotifyLogin = computed(
     () =>
@@ -125,8 +129,14 @@ export class LobbyComponent {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const code = params.get('code');
       if (code) {
-        this.joinCode.set(code.toUpperCase().slice(0, 6));
+        const incoming = code.toUpperCase().slice(0, 6);
+        this.joinCode.set(incoming);
         this.tab.set('join');
+        if (this.inSession() && incoming !== this.session.roomCode()) {
+          this.session.notice.set(
+            `Estás en otra sala. Sal y vuelve a entrar con el código #${incoming}.`
+          );
+        }
       }
     });
 
@@ -142,6 +152,8 @@ export class LobbyComponent {
   }
 
   async createRoom(): Promise<void> {
+    if (this.inSession() || this.joining()) return;
+    this.joining.set(true);
     this.preview.unlock();
     const wantsSpotify = this.wantsSpotifyLogin();
     if (wantsSpotify) {
@@ -158,17 +170,22 @@ export class LobbyComponent {
       });
     }
 
-    const names = ['Ana', 'Carlos', 'Sofía'].slice(0, this.bots());
-    // Carga efímera: si /api/catalog falla, el servicio usa VINIL06_CATALOG local.
-    const tracks = await this.catalog.loadPack(this.pack());
-    this.session.requestHost({
-      mode: this.mode(),
-      includeSelf: this.includeSelf(),
-      botNames: names,
-      manual: this.manual(),
-      tracks,
-      connectSpotify: wantsSpotify
-    });
+    try {
+      const names = ['Ana', 'Carlos', 'Sofía'].slice(0, this.bots());
+      // Carga efímera: si /api/catalog falla, el servicio usa VINIL06_CATALOG local.
+      const tracks = await this.catalog.loadPack(this.pack());
+      this.session.requestHost({
+        mode: this.mode(),
+        nickname: this.nickname(),
+        includeSelf: this.includeSelf(),
+        botNames: names,
+        manual: this.manual(),
+        tracks,
+        connectSpotify: wantsSpotify
+      });
+    } finally {
+      this.joining.set(false);
+    }
   }
 
   selectPack(id: CatalogPackId): void {
@@ -190,18 +207,23 @@ export class LobbyComponent {
   }
 
   joinRoom(): void {
+    if (this.inSession() || this.joining()) return;
     this.preview.unlock();
     const code = this.joinCode().trim().toUpperCase();
     if (!this.validNickname()) {
-      this.error.set('Escribe tu apodo (al menos 2 letras) para entrar a la sala.');
+      this.error.set('Escribe tu apodo (al menos 2 caracteres) para entrar a la sala.');
       return;
     }
-    if (code.length !== 6) {
-      this.error.set('El código de sala tiene 6 caracteres.');
+    if (!this.validCode()) {
+      this.error.set('El código de sala tiene 6 caracteres (letras o números).');
       return;
     }
     this.error.set('');
+    this.joining.set(true);
     this.session.join(code, this.nickname());
+    // Al cambiar de vista sin navegar, el scroll no se reseteaba solo.
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    setTimeout(() => this.joining.set(false), 700);
   }
 
   setCode(value: string): void {
@@ -243,6 +265,7 @@ export class LobbyComponent {
     const tracks = await this.catalog.loadPack(this.pack());
     this.session.activateHostAfterOAuth({
       mode: this.mode(),
+      nickname: this.nickname(),
       includeSelf: this.includeSelf(),
       botNames: ['Ana', 'Carlos', 'Sofía'].slice(0, this.bots()),
       manual: this.manual(),

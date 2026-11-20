@@ -35,5 +35,15 @@ export const environment = {
   spotify: {
     clientId: 'fba39884cee24a938f7579b33b9cf1aa' as string,
     redirectPath: '/spotify/callback'
+  },
+
+  /**
+   * YouTube para el host: Google Identity Services (token model).
+   * La API key es pública: restringir en Google Cloud a YouTube Data API v3
+   * y a https://vinil06.vercel.app/*. El token de acceso nunca se persiste.
+   */
+  youtube: {
+    clientId: '365995761449-0tl4rq1dd3rgi563rlh2g7g0kgsfctr5.apps.googleusercontent.com' as string,
+    apiKey: 'AIzaSyCdWDdtylzp2DWIzrI-pBSwmqGAcRmkFYM' as string
   }
 };

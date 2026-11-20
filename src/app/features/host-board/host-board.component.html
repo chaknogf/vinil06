@@ -1,4 +1,6 @@
 <div class="app-column host-column">
+  <span class="sr-only" role="status" aria-live="polite">{{ phaseAnnouncement() }}</span>
+
   <header class="glass-panel host-header">
     <div class="row-between">
       <div class="row head-left">
@@ -26,26 +28,64 @@
       <div class="row">
         <span class="phase-chip">{{ phaseLabel() }}</span>
         <span class="round tabular">Ronda {{ state().roundIndex + 1 }} / {{ state().totalRounds }}</span>
+        @if (session.connection() === 'unavailable') {
+          <span class="connection-chip" role="status">Señal perdida · reintentando…</span>
+        }
       </div>
       <div class="row">
-        <span
+        <button
+          type="button"
           class="presence-chip"
-          [attr.title]="session.onlineNames().join(', ') || 'Nadie conectado todavía'"
+          [attr.aria-expanded]="presenceOpen()"
+          aria-label="Jugadores en la sala"
+          (click)="presenceOpen.set(!presenceOpen())"
         >
           <span aria-hidden="true">👥</span>
           {{ session.onlineCount() }} en la sala
-        </span>
+        </button>
         <button type="button" class="invite-btn" (click)="copyCode()">
           {{ copied() ? '¡Copiado!' : 'Copiar invitación' }}
         </button>
       </div>
+      @if (presenceOpen()) {
+        <p class="presence-copy presence-pop" aria-live="polite">
+          En la sala: <strong>{{ session.onlineNames().join(', ') || 'solo tú' }}</strong>
+        </p>
+      }
+      @if (copyError()) {
+        <p class="presence-warn" role="status" aria-live="polite">
+          No se pudo copiar · comparte el código <strong>#{{ state().roomCode }}</strong>
+        </p>
+      }
     </div>
   </header>
 
-  <div class="segmented mobile-tabs">
-    <button type="button" [class.is-active]="view() === 'control'" (click)="view.set('control')">Control</button>
-    <button type="button" [class.is-active]="view() === 'cards'" (click)="view.set('cards')">Mis cartas</button>
+  <div class="segmented mobile-tabs" role="group" aria-label="Vistas del tablero">
+    <button
+      type="button"
+      [class.is-active]="view() === 'control'"
+      [attr.aria-pressed]="view() === 'control'"
+      (click)="view.set('control')"
+    >Control</button>
+    <button
+      type="button"
+      [class.is-active]="view() === 'cards'"
+      [attr.aria-pressed]="view() === 'cards'"
+      (click)="view.set('cards')"
+    >Mis cartas</button>
   </div>
+
+  @if (showHostTimer()) {
+    <app-round-timer-bar
+      class="host-timer"
+      [durationMs]="hostTimerDuration()"
+      [startedAt]="state().phaseStartedAt"
+      [clockOffset]="0"
+      [variant]="hostTimerVariant()"
+      [label]="hostTimerLabel()"
+      [announceUrgent]="false"
+    />
+  }
 
   <div class="host-layout">
     <section class="control-stack" [class.mobile-hidden]="view() === 'cards'">
@@ -67,9 +107,6 @@
           <p class="hint-copy">Comparte <strong>#{{ state().roomCode }}</strong> o el enlace copiado. El sorteo elige género y década antes de cada ronda.</p>
           <p class="presence-copy" aria-live="polite">
             En la sala: <strong>{{ session.onlineNames().join(', ') || 'solo tú' }}</strong>
-            @if (session.connection() === 'unavailable') {
-              <span class="presence-warn">· señal perdida, reintentando…</span>
-            }
           </p>
         </section>
       }
@@ -110,20 +147,12 @@
           [players]="state().players"
           title="¡Partida final!"
           subtitle="Marcador final tras 12 rondas del mismo tablero."
-          actionLabel="Limpiar memoria y jugar otra"
+          actionLabel="Jugar otra partida"
           [showAction]="true"
-          (newGame)="session.advance()"
+          (newGame)="mainAction()"
         />
       }
 
-      <button
-        type="button"
-        class="btn btn-primary btn-block main-action"
-        [disabled]="!canAdvance()"
-        (click)="mainAction()"
-      >
-        {{ actionLabel() }}
-      </button>
     </section>
 
     <section class="cards-stack" [class.mobile-hidden]="view() === 'control'">
@@ -142,5 +171,17 @@
         </section>
       }
     </section>
+  </div>
+
+  <!-- Fuera de las pestañas: siempre visible en 360px, también en "Mis cartas". -->
+  <div class="action-dock">
+    <button
+      type="button"
+      class="btn btn-primary btn-block main-action"
+      [disabled]="!canAdvance()"
+      (click)="mainAction()"
+    >
+      {{ actionLabel() }}
+    </button>
   </div>
 </div>

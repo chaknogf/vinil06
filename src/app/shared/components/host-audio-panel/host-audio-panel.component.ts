@@ -38,6 +38,7 @@ export class HostAudioPanelComponent {
 
   readonly youtubeInput = signal('');
   readonly retrying = signal(false);
+  readonly successNotice = signal('');
   readonly ytFrame = viewChild<ElementRef<HTMLIFrameElement>>('ytFrame');
 
   /** Controles de vídeo visibles también si Premium falló y puede servir de plan B. */
@@ -55,18 +56,21 @@ export class HostAudioPanelComponent {
       this.audio.spotify.status() !== 'free'
   );
 
+  /** Color y texto salen de la MISMA fuente: la fuente efectiva que está sonando. */
   readonly statusLabel = computed(() => {
     if (this.audio.activeNotice()) return 'Revisar audio';
-    switch (this.audio.mode()) {
-      case 'SPOTIFY_PREMIUM':
-        return this.audio.effectiveMode() === 'SPOTIFY_PREMIUM'
-          ? 'Spotify activo'
-          : 'Spotify · usando preview';
-      case 'YOUTUBE':
-        return this.audio.youtubeVideoId() ? 'YouTube listo' : 'YouTube · sin vídeo';
-      default:
-        return 'Manual';
+    switch (this.audio.effectiveMode()) {
+      case 'SPOTIFY_PREMIUM': return 'Spotify activo';
+      case 'YOUTUBE': return this.audio.youtubeVideoId() ? 'YouTube activo' : 'YouTube · sin vídeo';
+      default: return 'Manual · preview';
     }
+  });
+
+  readonly statusOk = computed(() => {
+    if (this.needsAttention()) return false;
+    const effective = this.audio.effectiveMode();
+    return effective === 'SPOTIFY_PREMIUM' ||
+      (effective === 'YOUTUBE' && !!this.audio.youtubeVideoId());
   });
 
   readonly needsAttention = computed(() => !!this.audio.activeNotice());
@@ -85,7 +89,28 @@ export class HostAudioPanelComponent {
   readonly canClose = computed(() => this.phase() === 'FLIP_6S');
 
   applyYouTube(): void {
-    this.audio.setYouTubeInput(this.youtubeInput());
+    const ok = this.audio.setYouTubeInput(this.youtubeInput());
+    this.successNotice.set(ok ? 'Vídeo de YouTube listo para la próxima escucha.' : '');
+  }
+
+  connectYouTube(): void {
+    this.successNotice.set('');
+    void this.audio.youtube.connect();
+  }
+
+  refreshYouTube(): void {
+    void this.audio.youtube.loadVideos();
+  }
+
+  disconnectYouTube(): void {
+    this.audio.youtube.disconnect();
+    this.successNotice.set('YouTube desconectado. Podés seguir pegando enlaces.');
+  }
+
+  pickYouTubeVideo(id: string): void {
+    this.audio.setYouTubeInput(id);
+    this.youtubeInput.set(id);
+    this.successNotice.set('Vídeo elegido de tu cuenta de YouTube.');
   }
 
   useSuggestedVideo(): void {
@@ -110,6 +135,7 @@ export class HostAudioPanelComponent {
     const frame = this.ytFrame()?.nativeElement.contentWindow;
     if (!frame) return;
     this.audio.dismissNotice();
+    this.successNotice.set('Audio activado para esta ronda.');
     const command = (func: string) =>
       frame.postMessage(JSON.stringify({ event: 'command', func, args: '' }), 'https://www.youtube.com');
     command('unMute');
@@ -120,11 +146,14 @@ export class HostAudioPanelComponent {
     this.retrying.set(true);
     const ok = await this.audio.spotify.retryDevice();
     this.retrying.set(false);
-    this.audio.warn(
-      ok
-        ? 'Spotify vuelve a estar activo. La próxima ronda sonará desde tu dispositivo.'
-        : 'Sigue sin haber un dispositivo de Spotify activo. Mientras tanto suena el preview.'
-    );
+    if (ok) {
+      // Un éxito no debe pintarse como aviso ámbar de "revisar audio".
+      this.audio.dismissNotice();
+      this.successNotice.set('Spotify vuelve a estar activo para la próxima ronda.');
+    } else {
+      this.successNotice.set('');
+      this.audio.warn('Sigue sin haber un dispositivo de Spotify activo. Mientras tanto suena el preview.');
+    }
   }
 
   /**

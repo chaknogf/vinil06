@@ -54,10 +54,10 @@
       [disabled]="!canUseWildcard()"
       (click)="wildcard.emit()"
     >
-      @if (turn().wildcardUsed) {
-        Comodín usado
+      @if (turn().wildcardUsed || turn().wildcardsLeft <= 0) {
+        Comodín agotado
       } @else {
-        Usar comodín · 1 por partida
+        Usar comodín · queda 1
       }
     </button>
     <button type="button" class="btn btn-primary" [disabled]="!canInteract()" (click)="done.emit()">

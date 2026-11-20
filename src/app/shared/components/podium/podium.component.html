@@ -7,7 +7,11 @@
 
   <ol class="ranking">
     @for (player of ranked(); track player.id; let i = $index) {
-      <li class="rank-row" [class.rank-first]="i === 0">
+      <li
+        class="rank-row"
+        [class.rank-first]="i === 0"
+        [class.rank-me]="!!highlightId() && player.id === highlightId()"
+      >
         <span class="rank-medal">{{ medal(i + 1) }}</span>
         <div class="rank-who">
           <p class="rank-name">{{ player.name }}</p>

@@ -304,12 +304,19 @@
 .duration-range {
   flex: 1 1 auto;
   min-width: 0;
-  height: 4px;
+  /* El riel sigue siendo de 4px, pero el área táctil es de 44px. */
+  height: 44px;
   appearance: none;
   -webkit-appearance: none;
+  background: transparent;
+  outline: none;
+}
+
+.duration-range::-webkit-slider-runnable-track,
+.duration-range::-moz-range-track {
+  height: 4px;
   border-radius: 999px;
   background: linear-gradient(90deg, #10b981, #6366f1);
-  outline: none;
 }
 
 .duration-range::-webkit-slider-thumb {
@@ -317,6 +324,7 @@
   -webkit-appearance: none;
   width: 18px;
   height: 18px;
+  margin-top: -7px;
   border-radius: 50%;
   background: #e2e8f0;
   border: 3px solid #10b981;
@@ -325,11 +333,12 @@
 }
 
 .duration-range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #e2e8f0;
   border: 3px solid #10b981;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
   cursor: pointer;
 }
 
@@ -449,10 +458,4 @@
 
 .privacy-icon {
   font-size: 15px;
-}
-
-.connection-note {
-  font-size: 10px;
-  color: #fdba74;
-  text-align: center;
 }
