@@ -184,6 +184,12 @@ AGENT.md                       # este archivo
   Las portadas remotas son URLs reales; si fallan, `AlbumArtComponent` las cambia por su SVG local (`onError`).
 - `usedTrackIds` marca las 4 cartas de cada ronda y las canciones de karaoke: una pista
   mostrada nunca vuelve a aparecer en la misma partida (con el listado del host se recicla).
+- **Señuelo del mismo artista**: `#nextPack()` elige la pista correcta entre las que tienen
+  un «hermano» disponible en el pool y mete otra canción del mismo intérprete como señuelo
+  (`SAME_ARTIST_DECOY_CHANCE = 0.85`, ~81% de rondas en la práctica). Los otros dos señuelos
+  salen de artistas sin hermanos libres para no gastar pares de cara a rondas futuras.
+  La comparación ignora acentos y mayúsculas (`sameArtist()`); si no hay hermanos, reparte al azar.
+  La correcta sigue siendo siempre `tracks[0]` (es lo que suena y lo que marca `correctId`).
 - `api/catalog.mjs` busca términos en español y filtra karaokes/tributos/remixes/en vivo.
   `catalog-sync.service.ts` aplica el mismo filtro y exige `previewUrl`: sin audio editable
   no entra la pista. El caché del edge no puede reintroducir compilaciones ajenas.

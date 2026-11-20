@@ -38,6 +38,24 @@ const PLAYER_COLORS = [
 /** Sin preview no hay juego: el catálogo local solo aporta pistas audibles. */
 const AUDIBLE_CATALOG: readonly VinilTrack[] = VINIL06_CATALOG.filter((track) => !!track.previewUrl);
 
+/**
+ * La mayoría de las rondas incluyen un señuelo del MISMO artista que la pista
+ * correcta: oír la voz ya no basta, hay que elegir bien el título.
+ */
+const SAME_ARTIST_DECOY_CHANCE = 0.85;
+
+/** Compara intérpretes ignorando acentos, mayúsculas y espacios sobrantes. */
+function sameArtist(a: VinilTrack, b: VinilTrack): boolean {
+  const key = (value: string): string =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  return a.id !== b.id && key(a.artist) === key(b.artist);
+}
+
 interface AnswerRecord {
   readonly optionId: string;
   readonly arrivalMs: number;
@@ -542,13 +560,33 @@ export class GameEngineService {
 
   /**
    * 4 pistas no usadas del catálogo activo: la primera es la correcta y el
-   * resto señuelos. Con el listado del host se recicla en vez de mezclar otras.
+   * resto señuelos. En la mayoría de las rondas uno de los señuelos es otra
+   * canción del MISMO artista (engaña a quien solo reconoce la voz). Si el pack
+   * no tiene hermanos disponibles, caemos al reparto aleatorio de siempre.
    */
   #nextPack(): RoundPack {
-    const pool = this.#roundPool();
-    const [correct, ...rest] = shuffleArray(pool);
-    const correctTrack = correct ?? AUDIBLE_CATALOG[0]!;
-    const decoys = rest.slice(0, 3);
+    const pool = shuffleArray(this.#roundPool());
+    let correctTrack = pool[0] ?? AUDIBLE_CATALOG[0]!;
+    let twin: VinilTrack | null = null;
+
+    if (Math.random() < SAME_ARTIST_DECOY_CHANCE) {
+      // Elegimos la correcta entre las que tienen un hermano en el pool: así
+      // el señuelo aparece de verdad casi siempre, no solo cuando toca al azar.
+      const withTwin = pool.filter((track) => pool.some((other) => sameArtist(track, other)));
+      if (withTwin.length > 0) {
+        correctTrack = pickOne(withTwin)!;
+        twin = pickOne(pool.filter((track) => sameArtist(correctTrack, track)))!;
+      }
+    }
+
+    let rest = pool.filter((track) => track.id !== correctTrack.id && track.id !== twin?.id);
+    if (twin) {
+      // Los otros dos señuelos salen de artistas sin hermanos disponibles:
+      // así no se gastan pares que puedan servir en rondas posteriores.
+      const orphans = rest.filter((track) => !rest.some((other) => sameArtist(track, other)));
+      rest = [...orphans, ...rest.filter((track) => !orphans.includes(track))];
+    }
+    const decoys = [...(twin ? [twin] : []), ...rest].slice(0, 3);
     for (const track of [correctTrack, ...decoys]) this.#markUsed(track);
 
     const chosen: RoundPack = {
