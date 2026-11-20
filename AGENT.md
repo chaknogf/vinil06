@@ -8,9 +8,12 @@ modos 12 rondas / Karaoke / Mixto). `modelo.html` es la referencia visual, no c�
 
 Vinil06 es un party game musical **mobile-first**: el anfitrión controla una ruleta y un
 tablero; los invitados entran con **código + apodo**, responden en su celular y compiten
-en un ranking. **No hay OAuth, API de Spotify ni persistencia**: el tablero del host abre
-la búsqueda de cada pista en `open.spotify.com` (deep link público) y el anfitrión la
-reproduce en su propia app; el estado vive en Signals/RAM y se borra al cerrar la pestaña.
+en un ranking. **Sin backend propio ni base de datos**: el host autoriza Spotify (PKCE) y
+YouTube (Google Identity Services) en su propia pestaña, corre el motor y guarda la sala en
+**IndexedDB de su dispositivo**. Los invitados se conectan por WebRTC; un TURN público solo
+relaya paquetes entre Wi-Fi y datos móviles, sin persistir nada. La sala se cierra con el botón
+del host o a los 30 minutos. Firebase queda como respaldo opcional y desactivado.
+Ver `PEER_LOCAL_SETUP.md`, `FIREBASE_SETUP.md` y `GOOGLE_CLOUD_SETUP.md`.
 
 ## 2. Stack y arranque
 
@@ -18,6 +21,8 @@ reproduce en su propia app; el estado vive en Signals/RAM y se borra al cerrar l
 - CSS puro con tokens en `src/styles.css`; animaciones `transform`/`opacity` a 60fps.
 - PWA con `@angular/service-worker`, `manifest.webmanifest` y `ngsw-config.json`.
 - Sin backend propio salvo `api/catalog.ts` (función serverless de Vercel, pública y efímera).
+- PeerJS + IndexedDB en el host como transporte por defecto; TURN público para redes mixtas.
+- Firebase Realtime Database como transporte opcional de respaldo; inactivo sin config.
 
 **Gestor de paquetes: SOLO pnpm** (npm tiene riesgos de paquetes; no usar `npm`/`npx`).
 `package.json` fija `pnpm@12.16.1`, `angular.json` usa `packageManager: "pnpm"` y
@@ -58,6 +63,9 @@ src/
         room-sync.provider.ts  # interfaz, SyncEnvelope, ROOM_SYNC_PROVIDER
         room-sync.service.ts   # fachada (filtra mensajes propios, publica)
         local-broadcast-sync.provider.ts
+        peer-hub-sync.provider.ts        # WebRTC host-hub + STUN/TURN (modo por defecto)
+        host-room-store.service.ts       # IndexedDB del host: sala + TTL 30 min
+        firebase-room-sync.provider.ts   # Realtime DB: respaldo opcional, inactivo
         realtime-cloud-sync.provider.ts  # WebSocket + adaptador Supabase Broadcast
       utils/random.ts          # Fisher-Yates, códigos, IDs efímeros
     features/
@@ -108,10 +116,18 @@ AGENT.md                       # este archivo
 `SyncPayloads`: `HELLO`, `STATE`, `ANSWER`, `WILDCARD`, `KARAOKE_DONE`, `BYE`, `PING`.
 `SyncEnvelope = { kind, roomCode, clientId, role, sentAt, seq, payload }`.
 
+- **Peer (por defecto):** WebRTC host-hub con PeerJS + STUN/TURN público. El host guarda
+  `backup()` del motor en IndexedDB y `restore()` lo rehidrata al recargar. `STATE` solo
+  cambia con eventos reales; el latido 1 Hz viaja como `PING` con `{ hostNow }`. TTL 30 min
+  y botón «Cerrar sala» borran el registro local.
+- **Firebase (respaldo):** `rooms/{code}/state` guarda el snapshot del host y
+  `roomEvents/{code}` los mensajes; `presence/{clientId}` + `onDisconnect` dan presencia real.
+  Solo se activa con `syncProvider: 'firebase'` y config web pegada.
 - **Local:** `BroadcastChannel('vinil06:<CODE>')`. Bots simulados en el host.
-- **Cloud:** `environment.cloud.transport` = `websocket` (JSON por socket) o `supabase`
-  (inyectar `CLOUD_REALTIME_CLIENT`). Si falla, `fallbackToLocal` usa BroadcastChannel.
-- Ningún mensaje se escribe en localStorage/IndexedDB; el SW cachea solo el app shell.
+- **Cloud:** `environment.cloud.transport` = `websocket` o `supabase` (inyectar
+  `CLOUD_REALTIME_CLIENT`). Si falla, `fallbackToLocal` usa BroadcastChannel.
+- Los tokens de Spotify/YouTube nunca se persisten; solo el estado de juego del host va a
+  IndexedDB. El SW cachea únicamente el app shell.
 
 ## 6. Catálogo y packs
 

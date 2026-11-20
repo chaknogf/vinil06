@@ -3,7 +3,9 @@ import { Subscription } from 'rxjs';
 import { ConnectionStatus, GameMode, Role, RoomState, VinilTrack } from '../models/game.models';
 import { createClientId } from '../utils/random';
 import { RoomSyncService } from '../sync/room-sync.service';
+import { HostRoomStore } from '../sync/host-room-store.service';
 import { GameEngineService, LOCAL_PLAYER_ID } from './game-engine.service';
+import { environment } from '../../../environments/environment';
 
 export interface HostSetup {
   readonly mode: GameMode;
@@ -25,6 +27,7 @@ export interface HostSetup {
 export class GameSessionService implements OnDestroy {
   readonly #sync = inject(RoomSyncService);
   readonly #engine = inject(GameEngineService);
+  readonly #store = inject(HostRoomStore);
   readonly #destroyRef = inject(DestroyRef);
 
   readonly clientId = createClientId();
@@ -39,6 +42,8 @@ export class GameSessionService implements OnDestroy {
   readonly pendingConnectSpotify = signal(false);
   readonly remoteState = signal<RoomState | null>(null);
   readonly clockOffset = signal(0);
+  /** Evita mostrar el lobby mientras se lee IndexedDB al recargar el host. */
+  readonly restoring = signal(true);
   readonly syncKind = this.#sync.kind;
 
   readonly inSession = computed(() => this.role() !== null);
@@ -72,10 +77,17 @@ export class GameSessionService implements OnDestroy {
   #helloSent = false;
   #presenceId: ReturnType<typeof setInterval> | null = null;
   #lastSeen = new Map<string, number>();
+  /** Firma del snapshot sin `hostNow`: evita publicar el estado en cada latido. */
+  #lastStateSignature = '';
+  #roomCreatedAt = 0;
   #subs: Subscription[] = [];
   #unloadHandler: (() => void) | null = null;
 
   constructor() {
+    void this.#restoreHostFromDevice();
+    // Si IndexedDB está bloqueado, no dejamos la app trabada esperando.
+    setTimeout(() => this.restoring.set(false), 1500);
+
     this.#subs.push(
       this.#sync.status.subscribe((status) => {
         this.connection.set(status);
@@ -92,6 +104,13 @@ export class GameSessionService implements OnDestroy {
     this.#subs.push(
       this.#sync.connectionCount$.subscribe((count) => this.peerConnections.set(count))
     );
+
+    // Firebase da presencia real: no hace falta expulsar por timeout de HELLO.
+    if (this.#sync.presence$) {
+      this.#subs.push(
+        this.#sync.presence$.subscribe((ids) => this.#syncRoster(ids))
+      );
+    }
 
     this.#subs.push(
       this.#sync.ofType('HELLO').subscribe((message) => {
@@ -150,12 +169,32 @@ export class GameSessionService implements OnDestroy {
       })
     );
 
-    // Publica snapshots del motor solo mientras esta pestaña sea el host.
+    // El latido del motor actualiza `hostNow` cada segundo. El desfase de reloj
+    // se compensa con ese valor, pero no hace falta enviar todo el snapshot:
+    // los cronómetros usan `phaseStartedAt` + `clockOffset`, no `hostNow`.
+    this.#subs.push(
+      this.#sync.ofType('PING').subscribe((message) => {
+        this.#updateClockOffset(message.payload.hostNow);
+        const current = this.remoteState();
+        if (current) this.remoteState.set({ ...current, hostNow: message.payload.hostNow });
+      })
+    );
+
+    // STATE solo cuando cambia algo que no sea la hora (fase, jugador, puntos…).
+    // PING viaja como evento tiny (~100 B) en vez de ~KB del snapshot completo.
     effect(() => {
       const state = this.#engine.snapshot();
-      if (this.role() === 'host' && state.roomCode) {
+      if (this.role() !== 'host' || !state.roomCode) return;
+
+      const signature = JSON.stringify({ ...state, hostNow: 0 });
+      if (signature !== this.#lastStateSignature) {
+        this.#lastStateSignature = signature;
         this.#sync.publish('STATE', state);
+        if (this.#sync.kind === 'peer' && !state.manual) {
+          void this.#store.save(state.roomCode, this.#engine.backup());
+        }
       }
+      this.#sync.publish('PING', { hostNow: state.hostNow });
     });
 
     this.#unloadHandler = () => this.leave();
@@ -221,6 +260,13 @@ export class GameSessionService implements OnDestroy {
     this.#sendHello();
   }
 
+  /** Borra la sala persistida y vuelve al lobby. Solo el anfitrión puede hacerlo. */
+  closeRoom(): void {
+    if (this.role() !== 'host') return;
+    void this.#store.clear(this.roomCode());
+    this.leave({ closeRoom: true });
+  }
+
   /** Reintento manual desde la UI cuando el canal no responde. */
   retryConnection(): void {
     const role = this.role();
@@ -233,17 +279,21 @@ export class GameSessionService implements OnDestroy {
     if (role === 'player') this.#sendHello();
   }
 
-  leave(): void {
+  leave(options?: { readonly closeRoom?: boolean }): void {
     this.#stopPresence();
     if (this.role() === 'player') {
       this.#sync.publish('BYE', {});
     }
-    this.#sync.disconnect();
+    if (options?.closeRoom) this.#sync.closeRoom();
+    else this.#sync.disconnect();
     this.role.set(null);
     this.roomCode.set('');
     this.nickname.set('');
     this.remoteState.set(null);
     this.clockOffset.set(0);
+    this.#lastStateSignature = '';
+    this.#roomCreatedAt = 0;
+    this.restoring.set(false);
     this.#helloSent = false;
     this.#pendingHost = null;
     this.privacyVisible.set(false);
@@ -328,10 +378,36 @@ export class GameSessionService implements OnDestroy {
     );
     this.roomCode.set(code);
     this.#pendingHost = null;
+    this.#roomCreatedAt = Date.now();
+    this.#lastStateSignature = '';
     this.#startPresence();
 
     // El tablero manual funciona 100% en esta pestaña; el normal usa pub/sub.
     if (!manual) this.#sync.connect(code, 'host', this.clientId);
+  }
+
+  /** Recupera la sala guardada en este dispositivo al recargar el host. */
+  async #restoreHostFromDevice(): Promise<void> {
+    try {
+      if (this.#sync.kind !== 'peer') return;
+      const record = await this.#store.loadLast();
+      if (!record || this.role()) return;
+
+      this.#engine.restore(record.backup);
+      this.role.set('host');
+      this.roomCode.set(record.code);
+      this.remoteState.set(null);
+      this.clockOffset.set(0);
+      this.#lastStateSignature = '';
+      this.#roomCreatedAt = record.createdAt;
+      this.#startPresence();
+      this.#sync.connect(record.code, 'host', this.clientId);
+      this.notice.set(`Sala #${record.code} recuperada de este dispositivo.`);
+    } catch {
+      // IndexedDB puede estar bloqueado: la partida sigue en RAM como siempre.
+    } finally {
+      this.restoring.set(false);
+    }
   }
 
   #sendHello(force = false): void {
@@ -356,8 +432,20 @@ export class GameSessionService implements OnDestroy {
         this.#sendHello(true);
         return;
       }
-      if (this.role() !== 'host') return;
       const now = Date.now();
+      const ttl = environment.roomTtlMs > 0 ? environment.roomTtlMs : 30 * 60 * 1000;
+      if (
+        this.role() === 'host' &&
+        this.#sync.kind === 'peer' &&
+        this.#roomCreatedAt > 0 &&
+        now - this.#roomCreatedAt >= ttl
+      ) {
+        void this.#store.clear(this.roomCode());
+        this.notice.set('La sala se cerró automáticamente a los 30 minutos.');
+        this.leave();
+        return;
+      }
+      if (this.role() !== 'host' || this.#sync.presence$) return;
       for (const [id, seen] of this.#lastSeen) {
         if (now - seen > 12_000) {
           this.#lastSeen.delete(id);
@@ -365,6 +453,18 @@ export class GameSessionService implements OnDestroy {
         }
       }
     }, 4000);
+  }
+
+  /** Con presencia real, la lista de conectados manda: se fue = se eliminó. */
+  #syncRoster(ids: readonly string[]): void {
+    if (this.role() !== 'host') return;
+    const connected = new Set(ids);
+    for (const id of [...this.#lastSeen.keys()]) {
+      if (!connected.has(id)) {
+        this.#lastSeen.delete(id);
+        this.#engine.removePlayer(id);
+      }
+    }
   }
 
   #stopPresence(): void {

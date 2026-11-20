@@ -40,6 +40,15 @@ interface AnswerRecord {
   readonly arrivalMs: number;
 }
 
+/** Copia privada mínima para reconstruir la sala en el dispositivo del host. */
+export interface HostRoomBackup {
+  readonly state: RoomState;
+  readonly pack: RoundPack | null;
+  readonly usedTrackIds: readonly string[];
+  readonly answers: ReadonlyArray<readonly [string, AnswerRecord]>;
+  readonly tracks: readonly VinilTrack[];
+}
+
 /**
  * Máquina de estados autoritativa del anfitrión. Todo vive en Signals/RAM.
  * El host decide fases, tiempos y puntos; los clientes solo reciben snapshots.
@@ -331,6 +340,74 @@ export class GameEngineService {
   destroy(): void {
     this.reset();
     this.#audio.dispose();
+  }
+
+  /** Serializa el estado visible y el contexto privado necesario para reanudar. */
+  backup(): HostRoomBackup {
+    return {
+      state: this.snapshot(),
+      pack: this.#pack,
+      usedTrackIds: [...this.#usedTrackIds],
+      answers: [...this.#answers].map(([id, record]) => [id, { ...record }] as const),
+      tracks: [...this.#catalogTracks]
+    };
+  }
+
+  /**
+   * Rehidrata una sala guardada en este dispositivo. Aditivo: no cambia fases
+   * ni reglas de puntaje; solo restaura signals, temporizadores restantes y
+   * el contexto privado (pack, pistas usadas, respuestas).
+   */
+  restore(backup: HostRoomBackup): void {
+    const state = backup?.state;
+    if (!state?.roomCode) return;
+
+    this.reset();
+    this.setCatalog(backup.tracks ?? []);
+    this.roomCode.set(state.roomCode);
+    this.mode.set(state.mode);
+    this.manual.set(state.manual);
+    this.roundIndex.set(state.roundIndex);
+    this.draw.set(state.draw ? { ...state.draw } : null);
+    this.options.set([...state.options]);
+    this.correctId.set(state.correctId);
+    this.players.set(state.players.map((player) => ({ ...player })));
+    this.results.set(state.results.map((result) => ({ ...result })));
+    this.karaoke.set(state.karaoke ? { ...state.karaoke } : null);
+    this.#pack = backup.pack ?? null;
+    this.#usedTrackIds = new Set(backup.usedTrackIds ?? []);
+    for (const [id, record] of backup.answers ?? []) this.#answers.set(id, { ...record });
+
+    const elapsed = Math.max(0, (state.hostNow || Date.now()) - state.phaseStartedAt);
+    this.#enterPhase(state.phase);
+    this.phaseStartedAt.set(Date.now() - elapsed);
+    this.#tick.update((n) => n + 1);
+    this.audioUrl.set(state.audioUrl ?? '');
+    this.#startHeartbeat();
+
+    const remaining = (duration: number) => Math.max(250, duration - elapsed);
+    switch (state.phase) {
+      case 'SPINNING':
+        this.#schedule(() => this.#finishSpin(), remaining(environment.timings.spinMs));
+        break;
+      case 'LISTEN_8S':
+        this.#hostAudio.startListen();
+        this.#schedule(() => this.#beginFlip(), remaining(state.listenDurationMs));
+        break;
+      case 'FLIP_6S':
+        this.#answerOpenedAt = performance.now();
+        this.#schedule(() => this.#finishRound(), remaining(ANSWER_DURATION_MS));
+        break;
+      case 'KARAOKE_TURN':
+        this.#hostAudio.startListen();
+        this.#schedule(
+          () => this.finishKaraoke('timeout'),
+          remaining(state.karaoke?.durationMs ?? 18000)
+        );
+        break;
+      default:
+        break;
+    }
   }
 
   // ---- Internos -------------------------------------------------------

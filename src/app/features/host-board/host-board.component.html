@@ -20,7 +20,13 @@
           }
         </button>
         <button type="button" class="privacy-btn" (click)="showPrivacy()">Privacidad</button>
-        <button type="button" class="privacy-btn danger" (click)="exit()">Salir</button>
+        <button
+          type="button"
+          class="privacy-btn danger"
+          aria-label="Salir o cerrar sala"
+          [attr.aria-expanded]="exitConfirm()"
+          (click)="exitConfirm.set(!exitConfirm())"
+        >Salir</button>
       </div>
     </div>
 
@@ -58,6 +64,14 @@
         </p>
       }
     </div>
+
+    @if (exitConfirm()) {
+      <div class="exit-confirm" role="group" aria-label="Confirmar salida">
+        <button type="button" class="privacy-btn" (click)="exitConfirm.set(false)">Cancelar</button>
+        <button type="button" class="privacy-btn" (click)="exit()">Salir sin borrar</button>
+        <button type="button" class="privacy-btn danger" (click)="closeRoom()">Cerrar sala</button>
+      </div>
+    }
   </header>
 
   <div class="segmented mobile-tabs" role="group" aria-label="Vistas del tablero">

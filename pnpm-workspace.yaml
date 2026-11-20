@@ -7,6 +7,8 @@ minimumReleaseAge: 0
 # pnpm 11+/12+: las aprobaciones de scripts de build viven aquí (no en package.json).
 allowBuilds:
   '@parcel/watcher': true
+  '@firebase/util': true
   esbuild: true
   lmdb: true
   msgpackr-extract: true
+  protobufjs: true

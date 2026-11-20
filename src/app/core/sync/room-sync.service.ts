@@ -18,6 +18,7 @@ export class RoomSyncService {
   readonly #provider = inject(RoomSyncProviderToken);
   readonly status: Observable<ConnectionStatus> = this.#provider.status;
   readonly connectionCount$: Observable<number> = this.#provider.connectionCount$;
+  readonly presence$: Observable<readonly string[]> | null = this.#provider.presence$ ?? null;
   readonly kind = this.#provider.kind;
 
   #roomCode = '';
@@ -56,6 +57,12 @@ export class RoomSyncService {
       filter((message) => message.kind === kind),
       map((message) => message as SyncEnvelope<K>)
     );
+  }
+
+  /** Borra la sala persistida (si el proveedor la tiene) y corta el canal. */
+  closeRoom(): void {
+    this.#provider.closeRoom?.();
+    this.disconnect();
   }
 
   disconnect(): void {

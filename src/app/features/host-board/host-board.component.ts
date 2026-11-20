@@ -42,6 +42,7 @@ export class HostBoardComponent {
   readonly copied = signal(false);
   readonly copyError = signal(false);
   readonly presenceOpen = signal(false);
+  readonly exitConfirm = signal(false);
 
   readonly phase = computed(() => this.state().phase);
   readonly localPlayerId = computed(() => {
@@ -155,7 +156,14 @@ export class HostBoardComponent {
   }
 
   exit(): void {
+    this.exitConfirm.set(false);
     this.session.leave();
+  }
+
+  /** Borra la sala persistida (o solo desconecta si el proveedor no persiste). */
+  closeRoom(): void {
+    this.exitConfirm.set(false);
+    this.session.closeRoom();
   }
 
   showPrivacy(): void {

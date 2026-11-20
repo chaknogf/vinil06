@@ -8,14 +8,46 @@ export const environment = {
 
   /**
    * Proveedor de sincronización de sala:
-   * - 'peer': WebRTC con el host como hub (PeerJS, sin backend ni cuota de servicios).
+   * - 'peer': WebRTC con el host como hub + IndexedDB en el dispositivo (modo actual).
+   *   No hay base de datos ni servidor propio: el host guarda y distribuye el estado.
+   * - 'firebase': Realtime Database (respaldo opcional). Solo se activa si además
+   *   hay `firebase.databaseURL` configurado.
    * - 'local': BroadcastChannel + RAM (pestañas del mismo navegador).
    * - 'cloud': pub/sub efímero (WebSocket o Supabase), requiere `cloud.url` o cliente inyectado.
-   *
-   * 'peer' permite jugar entre celulares sin servidor propio: solo usa el
-   * signaling público de PeerJS para que los invitados encuentren al host.
    */
-  syncProvider: 'peer' as 'local' | 'cloud' | 'peer',
+  syncProvider: 'peer' as 'local' | 'cloud' | 'peer' | 'firebase',
+
+  /**
+   * STUN + TURN público (Open Relay). El TURN es un relay de red: no guarda
+   * ningún dato de la partida. Necesario para mezclar Wi-Fi y datos móviles.
+   * Si las credenciales públicas dejan de servir, reemplazalas por las tuyas.
+   */
+  peer: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ] as RTCIceServer[]
+  },
+
+  /** Config web de Firebase. Sin `databaseURL`, el provider Firebase no se activa. */
+  firebase: {
+    apiKey: '' as string,
+    authDomain: '' as string,
+    databaseURL: '' as string,
+    projectId: '' as string,
+    appId: '' as string
+  },
+
+  /** Vida máxima de una sala persistida (30 min). El host también puede cerrarla antes. */
+  roomTtlMs: 30 * 60 * 1000,
 
   cloud: {
     /** Tipo de transporte: 'websocket' o 'supabase'. */

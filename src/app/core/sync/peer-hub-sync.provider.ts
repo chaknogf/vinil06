@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { DataConnection, Peer } from 'peerjs';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { ConnectionStatus, Role } from '../models/game.models';
 import { AnySyncMessage, RoomSyncProvider } from './room-sync.provider';
 
@@ -38,8 +39,10 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
     this.#roomId = `vinil06-${roomCode.toUpperCase()}`;
 
     // El host toma un ID fijo derivado del código; los jugadores reciben uno
-    // aleatorio del broker y se conectan a ese ID.
-    const peer = role === 'host' ? new Peer(this.#roomId) : new Peer();
+    // aleatorio del broker y se conectan a ese ID. El TURN solo relaya paquetes
+    // cuando Wi-Fi y datos móviles no pueden hablar directo.
+    const options = { config: { iceServers: environment.peer.iceServers } };
+    const peer = role === 'host' ? new Peer(this.#roomId, options) : new Peer(options);
     this.#peer = peer;
 
     peer.on('open', () => {

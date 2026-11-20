@@ -3,13 +3,36 @@
  * No importa `environment.ts`: en build de producción ese path se sustituye
  * por este mismo archivo y crearíamos una referencia circular.
  *
- * El transporte 'peer' usa WebRTC con el host como hub: funciona entre
- * celulares sin backend propio ni cuotas de servicios externos.
+ * 'peer' es el transporte preferido: el host es la autoridad y guarda la sala
+ * en IndexedDB de su propio dispositivo. El TURN público solo relaya paquetes,
+ * no persiste datos. Firebase queda como respaldo opcional y desactivado.
  */
 export const environment = {
   production: true,
   appName: 'Vinil06',
-  syncProvider: 'peer' as 'local' | 'cloud' | 'peer',
+  syncProvider: 'peer' as 'local' | 'cloud' | 'peer' | 'firebase',
+  peer: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      {
+        urls: [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp'
+        ],
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
+    ] as RTCIceServer[]
+  },
+  firebase: {
+    apiKey: '' as string,
+    authDomain: '' as string,
+    databaseURL: '' as string,
+    projectId: '' as string,
+    appId: '' as string
+  },
+  roomTtlMs: 30 * 60 * 1000,
   cloud: {
     transport: 'websocket' as 'websocket' | 'supabase',
     url: '',
