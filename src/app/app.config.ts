@@ -1,8 +1,16 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners, Type } from '@angular/core';
-import { provideRouter, withInMemoryScrolling } from '@angular/router';
+import {
+  ApplicationConfig,
+  inject,
+  provideAppInitializer,
+  provideBrowserGlobalErrorListeners,
+  Type
+} from '@angular/core';
+import { NavigationEnd, provideRouter, Router, withInMemoryScrolling } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
+import { filter } from 'rxjs';
 import { environment } from '../environments/environment';
 import { routes } from './app.routes';
+import { trackRoute } from './core/analytics/vercel-analytics';
 import { FirebaseRoomSyncProvider } from './core/sync/firebase-room-sync.provider';
 import { LocalBroadcastSyncProvider } from './core/sync/local-broadcast-sync.provider';
 import { PeerHubSyncProvider } from './core/sync/peer-hub-sync.provider';
@@ -25,9 +33,20 @@ function selectSyncProvider(): Type<RoomSyncProvider> {
   return LocalBroadcastSyncProvider;
 }
 
+/** El Router es la única fuente de cambios de ruta: inicial + pushState/popstate. */
+function provideAnalyticsRouteTracking() {
+  return provideAppInitializer(() => {
+    const router = inject(Router);
+    router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe((event) => trackRoute(event.urlAfterRedirects));
+  });
+}
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    provideAnalyticsRouteTracking(),
     provideRouter(routes, withInMemoryScrolling({ scrollPositionRestoration: 'top' })),
     {
       provide: ROOM_SYNC_PROVIDER,

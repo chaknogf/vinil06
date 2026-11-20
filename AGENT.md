@@ -50,6 +50,7 @@ src/
     app.config.ts              # elige ROOM_SYNC_PROVIDER según environment + service worker
     app.routes.ts              # '' y 'jugar/:code' -> LobbyComponent
     core/
+      analytics/vercel-analytics.ts # init + page views del Router, URLs sin secretos
       models/game.models.ts    # GamePhase, GameMode, RoomState, ShuffledOption, Player, Track, etc.
       data/
         catalog.ts             # TRACK_PACKS (12 packs x 4 = 48 pistas curadas)
@@ -203,6 +204,9 @@ AGENT.md                       # este archivo
 - `InstallPromptComponent`: escucha `beforeinstallprompt` y muestra un CTA sutil.
 - `vercel.json`: `installCommand`/`buildCommand` con pnpm, rewrite SPA con exclusión
   `/api/*` y headers para manifest, `ngsw-worker.js`, `ngsw.json` e `index.html`.
+- Vercel Web Analytics: `initVercelAnalytics()` en `main.ts` y page views enviadas
+  desde el Router (`app.config.ts`). `beforeSend` agrupa `/jugar/<código>` como
+  `/jugar/:code` y descarta `/spotify/callback` (code/state del PKCE).
 
 ## 8. Convenciones
 
