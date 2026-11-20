@@ -160,7 +160,7 @@ export class HostBoardComponent {
     this.session.leave();
   }
 
-  /** Borra la sala persistida (o solo desconecta si el proveedor no persiste). */
+  /** Cierra la sala efímera (o solo desconecta si el proveedor no la conserva). */
   closeRoom(): void {
     this.exitConfirm.set(false);
     this.session.closeRoom();

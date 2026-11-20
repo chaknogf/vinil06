@@ -8,8 +8,8 @@ export const environment = {
 
   /**
    * Proveedor de sincronización de sala:
-   * - 'peer': WebRTC con el host como hub + IndexedDB en el dispositivo (modo actual).
-   *   No hay base de datos ni servidor propio: el host guarda y distribuye el estado.
+   * - 'peer': WebRTC con el host como hub (modo actual). No hay base de datos ni
+   *   servidor propio: el host distribuye el estado, que vive solo en RAM.
    * - 'firebase': Realtime Database (respaldo opcional). Solo se activa si además
    *   hay `firebase.databaseURL` configurado.
    * - 'local': BroadcastChannel + RAM (pestañas del mismo navegador).
@@ -46,7 +46,7 @@ export const environment = {
     appId: '' as string
   },
 
-  /** Vida máxima de una sala persistida (30 min). El host también puede cerrarla antes. */
+  /** Vida máxima de una sala en memoria (30 min). El host también puede cerrarla antes. */
   roomTtlMs: 30 * 60 * 1000,
 
   cloud: {
@@ -83,20 +83,7 @@ export const environment = {
   spotify: {
     clientId: 'fba39884cee24a938f7579b33b9cf1aa' as string,
     redirectPath: '/spotify/callback'
-  },
-
-  /**
-   * YouTube para el host: Google Identity Services (token model) + Data API v3.
-   * - clientId: OAuth Client ID web de Google (orígenes autorizados:
-   *   http://127.0.0.1:4200 y https://vinil06.vercel.app).
-   * - apiKey: clave pública; RESTRINGIR en Google Cloud a:
-   *   · API: YouTube Data API v3
-   *   · Sitios web: http://127.0.0.1:4200/* y https://vinil06.vercel.app/*
-   * - GIS no usa client_secret ni redirect URI propia: el token se entrega al
-   *   callback de JS y vive solo en memoria.
-   */
-  youtube: {
-    clientId: '365995761449-0tl4rq1dd3rgi563rlh2g7g0kgsfctr5.apps.googleusercontent.com' as string,
-    apiKey: 'AIzaSyCdWDdtylzp2DWIzrI-pBSwmqGAcRmkFYM' as string
   }
+
+  // iTunes no necesita configuración: cada pista del catálogo trae su preview.
 };

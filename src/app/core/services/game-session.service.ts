@@ -3,8 +3,10 @@ import { Subscription } from 'rxjs';
 import { ConnectionStatus, GameMode, Role, RoomState, VinilTrack } from '../models/game.models';
 import { createClientId } from '../utils/random';
 import { RoomSyncService } from '../sync/room-sync.service';
-import { HostRoomStore } from '../sync/host-room-store.service';
+import { HostRoomRecord, HostRoomStore } from '../sync/host-room-store.service';
 import { GameEngineService, LOCAL_PLAYER_ID } from './game-engine.service';
+import { HostAudioControllerService } from './host-audio-controller.service';
+import { PreviewAudioService } from './preview-audio.service';
 import { environment } from '../../../environments/environment';
 
 export interface HostSetup {
@@ -27,7 +29,9 @@ export interface HostSetup {
 export class GameSessionService implements OnDestroy {
   readonly #sync = inject(RoomSyncService);
   readonly #engine = inject(GameEngineService);
+  readonly #hostAudio = inject(HostAudioControllerService);
   readonly #store = inject(HostRoomStore);
+  readonly #preview = inject(PreviewAudioService);
   readonly #destroyRef = inject(DestroyRef);
 
   readonly clientId = createClientId();
@@ -42,8 +46,6 @@ export class GameSessionService implements OnDestroy {
   readonly pendingConnectSpotify = signal(false);
   readonly remoteState = signal<RoomState | null>(null);
   readonly clockOffset = signal(0);
-  /** Evita mostrar el lobby mientras se lee IndexedDB al recargar el host. */
-  readonly restoring = signal(true);
   readonly syncKind = this.#sync.kind;
 
   readonly inSession = computed(() => this.role() !== null);
@@ -63,6 +65,15 @@ export class GameSessionService implements OnDestroy {
   readonly hostTrack = computed(() =>
     this.role() === 'host' ? this.#engine.hostTrack() : null
   );
+
+  /** Preview que suena en el host; nunca se publica en el snapshot de la sala. */
+  readonly hostAudioUrl = computed(() =>
+    this.role() === 'host' ? this.#engine.audioUrl() : ''
+  );
+
+  /** Última sala guardada en este dispositivo, lista para recuperar desde el lobby. */
+  readonly recoverableRoom = signal<HostRoomRecord | null>(null);
+  readonly recovering = signal(false);
 
   /** Canales WebRTC abiertos (solo peer; con local/cloud el conteo sale del snapshot). */
   readonly peerConnections = signal(0);
@@ -84,9 +95,8 @@ export class GameSessionService implements OnDestroy {
   #unloadHandler: (() => void) | null = null;
 
   constructor() {
-    void this.#restoreHostFromDevice();
-    // Si IndexedDB está bloqueado, no dejamos la app trabada esperando.
-    setTimeout(() => this.restoring.set(false), 1500);
+    // Recuperación explícita: nunca reabrimos una sala sin que el host lo pida.
+    void this.#loadRecoverableRoom();
 
     this.#subs.push(
       this.#sync.status.subscribe((status) => {
@@ -190,9 +200,8 @@ export class GameSessionService implements OnDestroy {
       if (signature !== this.#lastStateSignature) {
         this.#lastStateSignature = signature;
         this.#sync.publish('STATE', state);
-        if (this.#sync.kind === 'peer' && !state.manual) {
-          void this.#store.save(state.roomCode, this.#engine.backup());
-        }
+        // Escritura local, nunca remota: el estado de la sala no sale del dispositivo.
+        void this.#store.save(state.roomCode, this.#engine.backup());
       }
       this.#sync.publish('PING', { hostNow: state.hostNow });
     });
@@ -260,11 +269,59 @@ export class GameSessionService implements OnDestroy {
     this.#sendHello();
   }
 
-  /** Borra la sala persistida y vuelve al lobby. Solo el anfitrión puede hacerlo. */
+  /** Cierra la sala y borra su copia local. Solo el anfitrión puede hacerlo. */
   closeRoom(): void {
     if (this.role() !== 'host') return;
-    void this.#store.clear(this.roomCode());
+    const code = this.roomCode();
     this.leave({ closeRoom: true });
+    void this.#store.clear(code);
+    this.recoverableRoom.set(null);
+  }
+
+  /** Recupera la última sala guardada en este dispositivo tras una recarga. */
+  async recoverRoom(): Promise<void> {
+    if (this.inSession() || this.recovering()) return;
+    this.recovering.set(true);
+    try {
+      const record = this.recoverableRoom() ?? (await this.#store.loadLast());
+      if (!record) {
+        this.recoverableRoom.set(null);
+        return;
+      }
+      this.#preview.unlock();
+      this.#engine.restore(record.backup);
+      this.role.set('host');
+      this.roomCode.set(record.code);
+      this.nickname.set('');
+      this.remoteState.set(null);
+      this.clockOffset.set(0);
+      this.#lastStateSignature = '';
+      this.#roomCreatedAt = record.createdAt;
+      this.#startPresence();
+      this.#sync.connect(record.code, 'host', this.clientId);
+      this.#engine.resumeRestoredAudio();
+      this.recoverableRoom.set(null);
+      this.notice.set(`Sala #${record.code} recuperada de este dispositivo. Avisa a los jugadores para que vuelvan a entrar.`);
+    } catch {
+      this.notice.set('No se pudo recuperar la sala guardada en este dispositivo.');
+    } finally {
+      this.recovering.set(false);
+    }
+  }
+
+  /** Descarta la copia local: la sala no se podrá recuperar tras recargar. */
+  discardRecoverableRoom(): void {
+    const code = this.recoverableRoom()?.code;
+    this.recoverableRoom.set(null);
+    if (code) void this.#store.clear(code);
+  }
+
+  async #loadRecoverableRoom(): Promise<void> {
+    try {
+      this.recoverableRoom.set(await this.#store.loadLast());
+    } catch {
+      this.recoverableRoom.set(null);
+    }
   }
 
   /** Reintento manual desde la UI cuando el canal no responde. */
@@ -293,13 +350,16 @@ export class GameSessionService implements OnDestroy {
     this.clockOffset.set(0);
     this.#lastStateSignature = '';
     this.#roomCreatedAt = 0;
-    this.restoring.set(false);
     this.#helloSent = false;
     this.#pendingHost = null;
     this.privacyVisible.set(false);
     this.pendingConnectSpotify.set(false);
     this.connection.set('idle');
     this.#engine.reset();
+    // `leave()` conserva la copia local: permite recuperar la sala tras recargar.
+    // Solo `closeRoom()` / el TTL la borran. El audio y los avisos se limpian.
+    this.#hostAudio.reset();
+    void this.#loadRecoverableRoom();
   }
 
   answer(optionId: string): void {
@@ -386,30 +446,6 @@ export class GameSessionService implements OnDestroy {
     if (!manual) this.#sync.connect(code, 'host', this.clientId);
   }
 
-  /** Recupera la sala guardada en este dispositivo al recargar el host. */
-  async #restoreHostFromDevice(): Promise<void> {
-    try {
-      if (this.#sync.kind !== 'peer') return;
-      const record = await this.#store.loadLast();
-      if (!record || this.role()) return;
-
-      this.#engine.restore(record.backup);
-      this.role.set('host');
-      this.roomCode.set(record.code);
-      this.remoteState.set(null);
-      this.clockOffset.set(0);
-      this.#lastStateSignature = '';
-      this.#roomCreatedAt = record.createdAt;
-      this.#startPresence();
-      this.#sync.connect(record.code, 'host', this.clientId);
-      this.notice.set(`Sala #${record.code} recuperada de este dispositivo.`);
-    } catch {
-      // IndexedDB puede estar bloqueado: la partida sigue en RAM como siempre.
-    } finally {
-      this.restoring.set(false);
-    }
-  }
-
   #sendHello(force = false): void {
     if (
       (!force && this.#helloSent) ||
@@ -440,9 +476,10 @@ export class GameSessionService implements OnDestroy {
         this.#roomCreatedAt > 0 &&
         now - this.#roomCreatedAt >= ttl
       ) {
-        void this.#store.clear(this.roomCode());
         this.notice.set('La sala se cerró automáticamente a los 30 minutos.');
+        const expired = this.roomCode();
         this.leave();
+        void this.#store.clear(expired);
         return;
       }
       if (this.role() !== 'host' || this.#sync.presence$) return;

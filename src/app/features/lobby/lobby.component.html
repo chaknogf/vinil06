@@ -1,7 +1,11 @@
 @if (inSession()) {
   <app-session-view />
 } @else {
-  <div class="app-column lobby">
+  <div
+    class="app-column lobby"
+    [class.lobby-create]="tab() === 'create'"
+    [class.lobby-join]="tab() === 'join'"
+  >
     <header class="hero">
       <div class="brand">
         <span class="brand-disc" aria-hidden="true">
@@ -24,8 +28,25 @@
       <button type="button" [class.is-active]="tab() === 'join'" (click)="tab.set('join')">Unirme</button>
     </div>
 
+    @if (recoverableRoom(); as savedRoom) {
+      <section class="glass-panel recovery-banner" aria-label="Recuperar sala guardada">
+        <div>
+          <strong>Sala #{{ savedRoom.code }} guardada en este dispositivo</strong>
+          <p>Puedes reabrirla con tu marcador y ronda actual. Avisa a los jugadores para que vuelvan a entrar.</p>
+        </div>
+        <div class="recovery-actions">
+          <button type="button" class="btn btn-primary" [disabled]="recovering()" (click)="recoverRoom()">
+            {{ recovering() ? 'Recuperando…' : 'Recuperar sala' }}
+          </button>
+          <button type="button" class="btn btn-ghost" [disabled]="recovering()" (click)="discardRecoverableRoom()">
+            Descartar
+          </button>
+        </div>
+      </section>
+    }
+
     @if (tab() === 'create') {
-      <section class="glass-panel panel-lg float-in">
+      <section class="glass-panel panel-lg float-in setup-modes">
         <p class="step">1 / 3 · Elige el modo</p>
         <div class="modes">
           @for (item of modes; track item.id) {
@@ -34,7 +55,7 @@
               class="mode-card"
               [class.mode-active]="mode() === item.id"
               [attr.aria-pressed]="mode() === item.id"
-              (click)="mode.set(item.id)"
+              (click)="setMode(item.id)"
             >
               <span class="mode-icon" aria-hidden="true">{{ item.icon }}</span>
               <span class="mode-body">
@@ -50,7 +71,7 @@
         </div>
       </section>
 
-      <section class="glass-panel panel float-in">
+      <section class="glass-panel panel float-in setup-pack">
         <p class="step">2 / 3 · Elige el pack musical</p>
         <div class="packs" role="group" aria-label="Pack musical">
           @for (item of packs; track item.id) {
@@ -80,7 +101,7 @@
         </p>
       </section>
 
-      <section class="glass-panel panel float-in">
+      <section class="glass-panel panel float-in setup-room">
         <p class="step">3 / 3 · Ajusta la sala</p>
 
         <label class="field-label" for="host-nickname">Tu apodo (para jugar también)</label>
@@ -92,7 +113,7 @@
           autocomplete="nickname"
           placeholder="Tú (Host)"
           [value]="nickname()"
-          (input)="nickname.set($any($event.target).value)"
+          (input)="onNickname($any($event.target).value)"
           (keydown.enter)="createRoom()"
         />
 
@@ -128,7 +149,7 @@
             </p>
           } @else if (audio.mode() === 'SPOTIFY_PREMIUM') {
             <p class="field-hint">
-              Si no tienes Premium o dispositivo activo, caemos a YouTube: la ronda sigue igual.
+              Si no tienes Premium o dispositivo activo, suena el preview de iTunes en tu altavoz: la ronda sigue igual.
             </p>
           }
         </div>
@@ -171,7 +192,7 @@
             type="button"
             class="toggle-row"
             [attr.aria-pressed]="includeSelf()"
-            (click)="includeSelf.set(!includeSelf())"
+            (click)="setIncludeSelf(!includeSelf())"
           >
             <span>
               <strong>Incluirme como jugador</strong>
@@ -183,7 +204,7 @@
             type="button"
             class="toggle-row"
             [attr.aria-pressed]="manual()"
-            (click)="manual.set(!manual())"
+            (click)="setManual(!manual())"
           >
             <span>
               <strong>Tablero manual</strong>
@@ -215,8 +236,8 @@
           Paso 3: revisarás el aviso de privacidad antes de activar el tablero.
           @if (wantsSpotifyLogin()) {
             Después de aceptar, te pediremos login de Spotify.
-          } @else if (audio.mode() === 'YOUTUBE') {
-            Podrás pegar un vídeo de YouTube desde el tablero; sin él, el juego avanza igual.
+          } @else {
+            El audio sale de tu altavoz: los invitados solo ven las cartas, así que hay que estar presente para jugar.
           }
         </p>
       </div>
@@ -291,10 +312,10 @@
     <section class="privacy-note">
       <span class="privacy-icon" aria-hidden="true">🔒</span>
       <p>
-        Vinil06 no guarda playlists, correos ni historiales; los tokens de Spotify y YouTube
-        (si conectas) viven solo en memoria. El anfitrión guarda la sala en su propio dispositivo
-        durante 30 minutos y puede borrarla con «Cerrar sala». La música la controla desde su
-        tablero o en su propia app.
+        Vinil06 no guarda playlists, correos ni historiales en la nube. El token de Spotify vive
+        solo en esta pestaña. La sala del anfitrión se guarda únicamente en IndexedDB de este
+        dispositivo (30 min) para recuperarla tras recargar; tus ajustes del lobby, en localStorage.
+        El audio sale del altavoz del host: los invitados solo ven cartas y deben estar presentes.
       </p>
     </section>
 

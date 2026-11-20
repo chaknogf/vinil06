@@ -16,6 +16,12 @@
     <span class="mode-duration">· escucha {{ audio.listenDurationSec() }}s</span>
   </p>
 
+  <p class="yt-hint">
+    El preview de iTunes suena <strong>aquí, en tu altavoz</strong>, y es la misma canción
+    que aparece en la carta correcta. Los invitados solo ven las cartas:
+    <strong>para jugar hay que estar presente</strong>.
+  </p>
+
   @if (audio.activeNotice(); as notice) {
     <div class="notice" role="status">
       <span>{{ notice }}</span>
@@ -26,6 +32,26 @@
       <span>{{ successNotice() }}</span>
     </div>
   }
+
+  @if (noAudioWarning()) {
+    <div class="notice" role="alert">
+      Esta canción no tiene preview disponible. Se usó una pista alternativa: revisa el catálogo del pack.
+    </div>
+  }
+
+  <div class="yt-actions">
+    <button type="button" class="yt-btn" [class.yt-btn-active]="audio.mode() === 'ITUNES'" (click)="useItunes()">
+      Usar iTunes
+    </button>
+    <button
+      type="button"
+      class="yt-btn"
+      [class.yt-btn-active]="audio.mode() === 'SPOTIFY_PREMIUM'"
+      (click)="audio.setMode('SPOTIFY_PREMIUM')"
+    >
+      Spotify Premium
+    </button>
+  </div>
 
   @if (audio.spotifyDisconnected()) {
     <div class="yt-actions connect-row">
@@ -38,7 +64,7 @@
       <button type="button" class="yt-btn" [disabled]="retrying()" (click)="retrySpotify()">
         {{ retrying() ? 'Buscando…' : 'Reintentar dispositivo Spotify' }}
       </button>
-      <span class="retry-hint">Mientras tanto suena el preview.</span>
+      <span class="retry-hint">Mientras tanto suena el preview de iTunes.</span>
     </div>
   }
 
@@ -59,98 +85,6 @@
       <a class="deep-link" [href]="deepLink()" target="_blank" rel="noopener noreferrer">
         Buscar ↗
       </a>
-    </div>
-  }
-
-  @if (showYouTube()) {
-    <div class="youtube-block">
-      <div class="yt-account">
-        @if (audio.youtube.configured) {
-          @if (audio.youtube.connected()) {
-            <div class="yt-account-head">
-              <span class="yt-account-ok">● YouTube conectado</span>
-              <button type="button" class="yt-btn" [disabled]="audio.youtube.loading()" (click)="refreshYouTube()">
-                {{ audio.youtube.loading() ? 'Cargando…' : 'Actualizar' }}
-              </button>
-              <button type="button" class="yt-btn" (click)="disconnectYouTube()">Desconectar</button>
-            </div>
-
-            @if (audio.youtube.videos().length) {
-              <div class="yt-video-list" role="group" aria-label="Tus vídeos de YouTube">
-                @for (video of audio.youtube.videos(); track video.id) {
-                  <button
-                    type="button"
-                    class="yt-video"
-                    [class.is-picked]="audio.youtubeVideoId() === video.id"
-                    [attr.aria-pressed]="audio.youtubeVideoId() === video.id"
-                    (click)="pickYouTubeVideo(video.id)"
-                  >
-                    @if (video.thumbnail) {
-                      <img [src]="video.thumbnail" alt="" aria-hidden="true" loading="lazy" />
-                    }
-                    <span class="yt-video-copy">
-                      <strong>{{ video.title }}</strong>
-                      @if (video.channel) { <small>{{ video.channel }}</small> }
-                    </span>
-                  </button>
-                }
-              </div>
-            } @else if (!audio.youtube.loading()) {
-              <p class="yt-account-msg">Todavía no aparecen vídeos subidos en tu cuenta.</p>
-            }
-          } @else {
-            <button
-              type="button"
-              class="yt-btn btn-connect"
-              [disabled]="audio.youtube.status() === 'connecting'"
-              (click)="connectYouTube()"
-            >
-              {{ audio.youtube.status() === 'connecting' ? 'Abriendo Google…' : 'Conectar YouTube' }}
-            </button>
-          }
-
-          @if (audio.youtube.message()) {
-            <p class="yt-account-msg" role="status">{{ audio.youtube.message() }}</p>
-          }
-        } @else {
-          <p class="yt-account-msg">Login de YouTube no configurado en esta instalación · pegá un enlace.</p>
-        }
-      </div>
-
-      <p class="yt-or">o pegá un enlace manualmente</p>
-      <div class="yt-actions">
-        <button type="button" class="yt-btn" (click)="useSuggestedVideo()">Buscar vídeo ↗</button>
-        <input
-          class="yt-input"
-          type="text"
-          placeholder="https://youtu.be/… o ID de 11 caracteres"
-          aria-label="Enlace o ID de YouTube"
-          [value]="youtubeInput()"
-          (input)="youtubeInput.set($any($event.target).value)"
-          (keydown.enter)="applyYouTube()"
-        />
-        <button type="button" class="yt-btn" (click)="applyYouTube()">Usar</button>
-      </div>
-
-      @if (audio.listening()) {
-        @if (youtubeEmbedSrc(); as src) {
-          <iframe
-            #ytFrame
-            class="yt-frame"
-            [src]="src"
-            title="YouTube · pista de la ronda"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowfullscreen
-          ></iframe>
-          <button type="button" class="yt-btn yt-play" (click)="startYouTube()">
-            ▶ Tocar para activar audio
-          </button>
-        } @else {
-          <div class="yt-placeholder">
-            Sin vídeo: suena el preview de iTunes. Pega un enlace o pulsa «Buscar vídeo» para usar YouTube.
-          </div>
-        }
-      }
     </div>
   }
 

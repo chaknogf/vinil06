@@ -1,14 +1,8 @@
 <div class="app-column deck-page">
-  @if (audioPhase()) {
-    <!-- Slot reservado: al pasar a FLIP el botón no desaparece moviendo las cartas. -->
-    <div class="audio-slot" [class.is-hidden]="!audio.blocked()">
-      <button type="button" class="audio-unlock" (click)="audio.retry()">
-        ▶ Tocar para escuchar
-      </button>
-    </div>
-    @if (showNoPreview()) {
-      <p class="no-preview" role="status">Sin preview disponible · atento al anfitrión</p>
-    }
+  @if (listening()) {
+    <p class="host-speaker-notice" role="status">
+      🎵 El audio sale del <strong>altavoz del anfitrión</strong>. Hay que estar presente para escuchar y jugar.
+    </p>
   }
   <app-vinyl-deck-arena />
 

@@ -9,8 +9,12 @@ export type GamePhase =
   | 'PODIUM';
 
 export type GameMode = 'CARDS_12' | 'KARAOKE' | 'MIXED';
-/** Fuentes de audio que el anfitrión puede elegir para la fase de escucha. */
-export type HostAudioMode = 'SPOTIFY_PREMIUM' | 'YOUTUBE' | 'MANUAL';
+/**
+ * Fuentes de audio del anfitrión. iTunes es la base (sin login ni clave):
+ * reproduce el preview de la MISMA pista que muestran las cartas. Spotify
+ * Premium es un extra opcional que reproduce esa misma pista en su dispositivo.
+ */
+export type HostAudioMode = 'ITUNES' | 'SPOTIFY_PREMIUM';
 export type Role = 'host' | 'player';
 export type ConnectionStatus = 'idle' | 'connected' | 'unavailable';
 
@@ -32,9 +36,7 @@ export interface Track {
   readonly spotifyUri?: string;
   /** Preview ~30s de iTunes: permite oír la pista sin cuenta ni API key. */
   readonly previewUrl?: string;
-  /** Texto listo para buscar la pista en YouTube cuando no hay Premium. */
-  readonly youtubeQuery?: string;
-  /** ID de vídeo de YouTube, si el catálogo o el host lo conocen. */
+  /** ID de vídeo de YouTube solo para la miniatura de la carta; nunca se reproduce. */
   readonly youtubeVideoId?: string;
 }
 
@@ -64,6 +66,8 @@ export interface PublicOption {
   readonly cover?: string;
   /** URI de Spotify opcional para reproducción directa. */
   readonly spotifyUri?: string;
+  /** ID de vídeo conocido: permite usar `i.ytimg.com` con fallback a la SVG local. */
+  readonly youtubeVideoId?: string;
 }
 
 /**
@@ -141,8 +145,6 @@ export interface RoomState {
   readonly results: readonly RoundResultEntry[];
   readonly karaoke: KaraokeTurn | null;
   readonly manual: boolean;
-  /** Preview de la pista en curso. No identifica la respuesta: se envía a todos. */
-  readonly audioUrl?: string;
   /** Margen real de escucha elegido por el host, siempre entre 8000 y 15000 ms. */
   readonly listenDurationMs: number;
   /** Fuente de audio activa del anfitrión (con fallback ya aplicado). */

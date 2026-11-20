@@ -1,9 +1,9 @@
 # Respaldo opcional: Firebase Realtime Database
 
-**Estado actual: desactivado.** El modo por defecto es Peer + IndexedDB en el host
-(ver `PEER_LOCAL_SETUP.md`): no hay base de datos ni servidor propio. Este provider
-queda guardado como respaldo en caso de que necesites presencia administrada o
-conectividad sin depender de TURN.
+**Estado actual: desactivado.** El modo por defecto es Peer con estado solo en RAM
+(ver `PEER_LOCAL_SETUP.md`): no hay base de datos ni servidor propio, y recargar el host
+no recupera la sala. Este provider queda guardado como respaldo en caso de que necesites
+presencia administrada, conectividad sin depender de TURN o persistencia de la sala.
 
 Para activarlo hay que cambiar `syncProvider` a `'firebase'` en ambos environments
 **y** pegar la config web. Sin `databaseURL`, `app.config.ts` cae a PeerJS.
@@ -26,13 +26,14 @@ El host **sigue siendo autoritativo**: publica el `RoomState` en `rooms/{code}/s
 - Botón **Salir** en el tablero del host → se abre una confirmación con tres opciones: **Cancelar**, **Salir sin borrar** y **Cerrar sala**.
   - *Salir sin borrar*: te desconectás, pero la sala sigue existiendo para los demás.
   - *Cerrar sala*: borra `rooms/{code}` y vuelve al lobby. Solo el host ve esta opción.
-- El botón de cierre existe también con PeerJS, pero ahí solo desconecta (no hay nada persistido).
+- Con PeerJS (modo por defecto) no hay nada persistido: «Salir» borra la sala de RAM y
+  recargar devuelve al host al lobby.
 
 ## Pasos para activarlo
 
 ### 1. Crear el proyecto en Firebase
 
-1. Entrá a <https://console.firebase.google.com/> y creá un proyecto (podés reutilizar el proyecto de Google Cloud donde creaste el OAuth Client ID de YouTube).
+1. Entrá a <https://console.firebase.google.com/> y creá un proyecto (Vinil06 ya no usa OAuth de Google; este paso es solo si activás este respaldo).
 2. En **Realtime Database** → **Crear base de datos**. Elegí la región más cercana (por ejemplo `europe-west1` o `us-central1`) y arrancá en **modo bloqueado**; después se ponen las reglas.
 3. En **Configuración del proyecto → Tus aplicaciones → Aplicación web**, registrá la app y copiá el objeto `firebaseConfig`.
 
@@ -87,7 +88,8 @@ Con `databaseURL` no vacío, `app.config.ts` activa `FirebaseRoomSyncProvider` a
 2. `pnpm exec ng build`
 3. `pnpm test --watch=false`
 4. Crear sala en un celular por Wi-Fi, entrar desde otro por datos móviles.
-5. Recargar la pestaña del host: la sala y el marcador deben seguir.
+5. Recargar la pestaña del host con Firebase activo: la sala y el marcador deben seguir
+   (con el modo Peer por defecto, en cambio, no deben reaparecer).
 6. Poner un celular en segundo plano y volver: no debe perder el puntaje.
 7. Pulsar **Salir → Cerrar sala**: la sala debe desaparecer y los invitados deben volver al lobby o quedar sin señal.
 

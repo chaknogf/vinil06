@@ -27,20 +27,20 @@
       <div id="ephemeral-copy" class="copy">
         <p>
           <strong>Conectar tu Spotify Premium es opcional.</strong> Si lo haces, Vinil06 usa un
-          flujo PKCE para coordinar la música (play en la escucha, pausa al voltear). También puedes
-          usar YouTube o reproducirla en tu app: la partida nunca se bloquea.
+          flujo PKCE para coordinar la música (play en la escucha, pausa al voltear). Por defecto se
+          reproduce el preview de iTunes de la misma canción de la carta, en tu altavoz: sin login,
+          sin claves y sin depender de Spotify. Los invitados solo ven las cartas: hay que estar
+          presente para oír la música.
         </p>
         <p>
           <strong>No se copian, guardan, exportan ni transmiten</strong> datos personales,
-          correos, credenciales, historial ni playlists. Los tokens de Spotify y YouTube
-          viven <strong>solo en memoria volátil de esta pestaña (Signals)</strong>, sin
-          persistirse en bases de datos ni almacenamiento local.
+          correos, credenciales, historial ni playlists a ningún servidor. El token de Spotify vive
+          <strong>solo en memoria volátil de esta pestaña (Signals)</strong>.
         </p>
         <p>
-          El anfitrión guarda el estado de la partida en el
-          <strong>almacenamiento de su propio dispositivo (IndexedDB)</strong> para recuperar
-          la sala si recarga la página. Vence a los 30 minutos y se borra al pulsar
-          «Cerrar sala». Los invitados no guardan nada.
+          La sala se guarda únicamente en <strong>IndexedDB de este dispositivo</strong> (30 min)
+          para poder recuperarla tras recargar, y tus ajustes del lobby en <strong>localStorage</strong>.
+          Se borra al cerrar la sala o al vencer, y los invitados no guardan nada.
         </p>
       </div>
 

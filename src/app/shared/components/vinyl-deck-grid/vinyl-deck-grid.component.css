@@ -1,6 +1,9 @@
 :host {
   display: block;
   width: 100%;
+  /* El tamaño de carta responde al ancho disponible, no al viewport: la misma
+     cuadrícula vive suelta en el jugador y dentro de una columna en el host. */
+  container-type: inline-size;
 }
 
 .cards-grid {
@@ -291,6 +294,35 @@
 
   .cover-wrap {
     height: 128px;
+  }
+}
+
+/* En paneles anchos las cartas son el protagonista: más tamaño, mismo giro. */
+@container (min-width: 560px) {
+  .cards-grid {
+    gap: 1rem;
+  }
+
+  .vinyl-card {
+    height: 268px;
+  }
+
+  .cover-wrap {
+    height: 156px;
+  }
+}
+
+@container (min-width: 820px) {
+  .cards-grid {
+    gap: 1.15rem;
+  }
+
+  .vinyl-card {
+    height: 300px;
+  }
+
+  .cover-wrap {
+    height: 180px;
   }
 }
 

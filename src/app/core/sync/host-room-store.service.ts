@@ -15,9 +15,9 @@ export interface HostRoomRecord {
 }
 
 /**
- * Persistencia local del host: la sala vive en el dispositivo que la creó,
- * nunca en un servidor. IndexedDB sobrevive al reload de la pestaña; si el
- * navegador no la soporta, la sala sigue funcionando solo en RAM.
+ * Persistencia local del anfitrión: la sala vive en el dispositivo que la creó,
+ * nunca en un servidor ni en una base de datos remota. IndexedDB sobrevive al
+ * reload; si el navegador la bloquea, la partida sigue funcionando solo en RAM.
  */
 @Injectable({ providedIn: 'root' })
 export class HostRoomStore {
@@ -46,12 +46,6 @@ export class HostRoomStore {
     return this.#loadValid(db, meta.value);
   }
 
-  async load(code: string): Promise<HostRoomRecord | null> {
-    const db = await this.#open();
-    if (!db) return null;
-    return this.#loadValid(db, code.toUpperCase());
-  }
-
   async clear(code: string): Promise<void> {
     const db = await this.#open();
     if (!db) return;
@@ -65,7 +59,7 @@ export class HostRoomStore {
     const record = await this.#get<HostRoomRecord>(db, ROOMS, code);
     if (!record) return null;
     const ttl = environment.roomTtlMs > 0 ? environment.roomTtlMs : 30 * 60 * 1000;
-    if (Date.now() - record.createdAt >= ttl) {
+    if (Date.now() - record.createdAt >= ttl || Date.now() - record.savedAt >= ttl) {
       await this.clear(code);
       return null;
     }

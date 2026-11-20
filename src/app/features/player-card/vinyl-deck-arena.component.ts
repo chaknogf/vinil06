@@ -18,6 +18,7 @@ import {
 import { AudioService } from '../../core/services/audio.service';
 import { GameSessionService } from '../../core/services/game-session.service';
 import { shuffleArray } from '../../core/utils/random';
+import { youtubeThumbnailUrl } from '../../core/utils/youtube';
 import { KaraokeRouletteCardComponent } from '../../shared/components/karaoke-roulette-card/karaoke-roulette-card.component';
 import { RoundTimerBarComponent, TimerVariant } from '../../shared/components/round-timer-bar/round-timer-bar.component';
 import { VinylDeckGridComponent } from '../../shared/components/vinyl-deck-grid/vinyl-deck-grid.component';
@@ -354,6 +355,34 @@ interface RoundFeedback {
       }
     }
 
+    @media (min-width: 900px) {
+      .deck-shell {
+        padding: 1.4rem;
+        gap: 1.1rem;
+        border-radius: 26px;
+      }
+
+      .badge-room,
+      .badge-round,
+      .badge-draw {
+        font-size: 0.78rem;
+        padding: 0.35rem 0.7rem;
+      }
+
+      .hud-actions {
+        gap: 0.6rem;
+      }
+
+      .score-pill strong {
+        font-size: 1.1rem;
+      }
+
+      .status-banner {
+        font-size: 0.95rem;
+        padding: 0.8rem 1rem;
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .mini-disc,
       .live-dot {
@@ -540,8 +569,12 @@ export class VinylDeckArenaComponent {
 
   #enrich(option: PublicOption, slotIndex: number): ShuffledOption {
     const track = VINIL06_CATALOG.find((candidate) => candidate.id === option.id);
+    // Miniatura pública del vídeo cuando el catálogo conoce su ID; si falla
+    // (offline / 404) VinylDeckGridComponent cae a `coverDataUri` con onError.
+    const thumbnail = youtubeThumbnailUrl(option.youtubeVideoId ?? '');
     return {
       ...option,
+      cover: thumbnail || option.cover || '',
       slotIndex,
       year: track?.year ?? 0,
       coverDataUri: svgCover(option)

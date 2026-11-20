@@ -3,9 +3,9 @@
  * No importa `environment.ts`: en build de producción ese path se sustituye
  * por este mismo archivo y crearíamos una referencia circular.
  *
- * 'peer' es el transporte preferido: el host es la autoridad y guarda la sala
- * en IndexedDB de su propio dispositivo. El TURN público solo relaya paquetes,
- * no persiste datos. Firebase queda como respaldo opcional y desactivado.
+ * 'peer' es el transporte preferido: el host es la autoridad y el estado de la
+ * sala vive solo en RAM. El TURN público solo relaya paquetes, no persiste
+ * datos. Firebase queda como respaldo opcional y desactivado.
  */
 export const environment = {
   production: true,
@@ -58,15 +58,7 @@ export const environment = {
   spotify: {
     clientId: 'fba39884cee24a938f7579b33b9cf1aa' as string,
     redirectPath: '/spotify/callback'
-  },
-
-  /**
-   * YouTube para el host: Google Identity Services (token model).
-   * La API key es pública: restringir en Google Cloud a YouTube Data API v3
-   * y a https://vinil06.vercel.app/*. El token de acceso nunca se persiste.
-   */
-  youtube: {
-    clientId: '365995761449-0tl4rq1dd3rgi563rlh2g7g0kgsfctr5.apps.googleusercontent.com' as string,
-    apiKey: 'AIzaSyCdWDdtylzp2DWIzrI-pBSwmqGAcRmkFYM' as string
   }
+
+  // iTunes no necesita configuración: cada pista del catálogo trae su preview.
 };

@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
-import { PublicOption } from '../models/game.models';
+import { HostAudioMode, PublicOption } from '../models/game.models';
 import { pkceChallenge, randomBase64Url } from '../utils/pkce';
 
 export type SpotifyHostStatus =
@@ -52,7 +52,7 @@ export interface SpotifyCreateIntent {
   readonly includeSelf: boolean;
   readonly manual: boolean;
   /** Fuente de audio elegida en el lobby para reanudarla tras el redirect. */
-  readonly audioMode?: 'SPOTIFY_PREMIUM' | 'YOUTUBE' | 'MANUAL';
+  readonly audioMode?: HostAudioMode;
   /** Duración de escucha elegida (8..15s) para reanudarla tras el redirect. */
   readonly listenDurationSec?: number;
 }
@@ -208,11 +208,9 @@ export class SpotifyHostAudioService {
         includeSelf: value.includeSelf !== false,
         manual: value.manual === true,
         audioMode:
-          value.audioMode === 'SPOTIFY_PREMIUM' ||
-          value.audioMode === 'YOUTUBE' ||
-          value.audioMode === 'MANUAL'
+          value.audioMode === 'ITUNES' || value.audioMode === 'SPOTIFY_PREMIUM'
             ? value.audioMode
-            : 'SPOTIFY_PREMIUM',
+            : 'ITUNES',
         listenDurationSec:
           typeof value.listenDurationSec === 'number'
             ? Math.min(15, Math.max(8, value.listenDurationSec))

@@ -1,11 +1,16 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { comparePlayersByRank, GamePhase, RoomState } from '../../core/models/game.models';
-import { PreviewAudioService } from '../../core/services/preview-audio.service';
 import { LeaderboardPanelComponent } from '../../shared/components/leaderboard-panel/leaderboard-panel.component';
 import { PodiumComponent } from '../../shared/components/podium/podium.component';
 import { VinylDeckArenaComponent } from './vinyl-deck-arena.component';
 
-/** Vista del jugador: arena de cartas + tablero en vivo + podio final. */
+/**
+ * Vista del jugador: arena de cartas + tablero en vivo + podio final.
+ *
+ * El audio NO se reproduce aquí: el preview suena en el altavoz del anfitrión,
+ * que es quien tiene la carta correcta. Los invitados solo ven las cartas y
+ * deben estar presentes en la sala para oír la música.
+ */
 @Component({
   selector: 'app-player-card',
   standalone: true,
@@ -17,50 +22,12 @@ import { VinylDeckArenaComponent } from './vinyl-deck-arena.component';
 export class PlayerCardComponent {
   readonly state = input.required<RoomState>();
   readonly clientId = input('');
-  readonly clockOffset = input(0);
   readonly canInteract = input(true);
-  /** En el tablero del host evitamos solapar el preview con Spotify/YouTube. */
-  readonly suppressPreview = input(false);
 
-  readonly audio = inject(PreviewAudioService);
   readonly phase = computed<GamePhase>(() => this.state().phase);
-  readonly audioPhase = computed(() =>
-    this.phase() === 'LISTEN_8S' ||
-    this.phase() === 'FLIP_6S' ||
-    this.phase() === 'KARAOKE_TURN'
+  readonly listening = computed(
+    () => this.phase() === 'LISTEN_8S' || this.phase() === 'KARAOKE_TURN'
   );
-  /** Sin preview el jugador oía silencio mientras las cartas decían "ESCUCHANDO…". */
-  readonly showNoPreview = computed(
-    () => this.audioPhase() && !this.state().audioUrl && !this.suppressPreview()
-  );
-
-  #lastAudioKey = '';
-
-  constructor() {
-    effect(() => {
-      const state = this.state();
-      const listening = state.phase === 'LISTEN_8S' || state.phase === 'KARAOKE_TURN';
-      // El host publica un snapshot cada segundo: solo reaccionamos a cambios
-      // reales de pista/fase para no reiniciar el audio a cada latido.
-      // Incluimos la fuente efectiva: si Spotify falla a mitad de escucha y
-      // caemos al preview, hay que volver a evaluar la supresión.
-      const key = listening
-        ? `${state.phase}|${state.audioUrl ?? ''}|${state.hostAudioMode}`
-        : '';
-      if (key === this.#lastAudioKey) return;
-      this.#lastAudioKey = key;
-      // El host ya tiene su fuente (Spotify o YouTube): no duplicamos el preview.
-      const hostHasOwnAudio =
-        this.suppressPreview() &&
-        (state.hostAudioMode === 'SPOTIFY_PREMIUM' || state.hostAudioMode === 'YOUTUBE');
-      if (!key || !state.audioUrl || hostHasOwnAudio) {
-        this.audio.stop();
-        return;
-      }
-      const elapsed = Date.now() - this.clockOffset() - state.phaseStartedAt;
-      this.audio.play(state.audioUrl, Math.max(0, elapsed) / 1000);
-    });
-  }
 
   readonly podiumTitle = computed(() => {
     const sorted = [...this.state().players].sort(comparePlayersByRank);

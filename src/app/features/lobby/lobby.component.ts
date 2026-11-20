@@ -11,6 +11,7 @@ import {
 import { GameMode, HostAudioMode } from '../../core/models/game.models';
 import { GameSessionService } from '../../core/services/game-session.service';
 import { HostAudioControllerService } from '../../core/services/host-audio-controller.service';
+import { HostPreferencesService } from '../../core/services/host-preferences.service';
 import { PreviewAudioService } from '../../core/services/preview-audio.service';
 import {
   SpotifyCreateIntent,
@@ -41,16 +42,10 @@ const AUDIO_MODES: readonly AudioModeCard[] = [
     icon: '🟢'
   },
   {
-    id: 'YOUTUBE',
-    name: 'YouTube',
-    description: 'Busca o pega el vídeo; suena solo en la escucha, sin Premium.',
-    icon: '▶️'
-  },
-  {
-    id: 'MANUAL',
-    name: 'Manual',
-    description: 'Sin APIs: pones la canción tú y avanzas desde el tablero.',
-    icon: '✋'
+    id: 'ITUNES',
+    name: 'iTunes',
+    description: 'Preview de la canción exacta en tu altavoz. Sin login, sin clave y sin red extra.',
+    icon: '🎵'
   }
 ];
 
@@ -91,22 +86,25 @@ export class LobbyComponent {
   readonly catalog = inject(CatalogSyncService);
   readonly spotify = inject(SpotifyHostAudioService);
   readonly audio = inject(HostAudioControllerService);
+  readonly prefs = inject(HostPreferencesService);
   readonly preview = inject(PreviewAudioService);
 
   readonly modes = MODES;
   readonly audioModes = AUDIO_MODES;
   readonly packs = CATALOG_PACKS;
   readonly tab = signal<'create' | 'join'>('create');
-  readonly mode = signal<GameMode>('CARDS_12');
-  readonly pack = signal<CatalogPackId>('mix');
-  readonly nickname = signal('');
+  /** El formulario arranca con los ajustes guardados en este dispositivo. */
+  readonly mode = signal<GameMode>(this.prefs.value().mode);
+  readonly pack = signal<CatalogPackId>(this.prefs.value().pack);
+  readonly nickname = signal(this.prefs.value().nickname);
   readonly joinCode = signal('');
-  // Sin bots por defecto: solo se suman si el host los elige explícitamente.
-  readonly bots = signal(0);
-  readonly includeSelf = signal(true);
-  readonly manual = signal(false);
+  readonly bots = signal(this.prefs.value().bots);
+  readonly includeSelf = signal(this.prefs.value().includeSelf);
+  readonly manual = signal(this.prefs.value().manual);
   readonly error = signal('');
   readonly joining = signal(false);
+  readonly recoverableRoom = this.session.recoverableRoom;
+  readonly recovering = this.session.recovering;
 
   readonly inSession = computed(() => this.session.inSession());
   readonly selectedMode = computed(() => MODES.find((m) => m.id === this.mode()) ?? MODES[0]!);
@@ -126,6 +124,9 @@ export class LobbyComponent {
   );
 
   constructor() {
+    this.audio.setMode(this.prefs.value().audioMode);
+    this.audio.setListenDurationSec(this.prefs.value().listenDurationSec);
+
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const code = params.get('code');
       if (code) {
@@ -190,6 +191,7 @@ export class LobbyComponent {
 
   selectPack(id: CatalogPackId): void {
     this.pack.set(id);
+    this.#persist({ pack: id });
   }
 
   selectedPackLabel(): string {
@@ -204,6 +206,7 @@ export class LobbyComponent {
   onNickname(value: string): void {
     this.nickname.set(value);
     this.error.set('');
+    this.#persist({ nickname: value });
   }
 
   joinRoom(): void {
@@ -235,16 +238,49 @@ export class LobbyComponent {
   }
 
   setBots(value: number): void {
-    this.bots.set(Math.min(3, Math.max(0, value)));
+    const safe = Math.min(3, Math.max(0, value));
+    this.bots.set(safe);
+    this.#persist({ bots: safe });
+  }
+
+  setMode(mode: GameMode): void {
+    this.mode.set(mode);
+    this.#persist({ mode });
+  }
+
+  setIncludeSelf(value: boolean): void {
+    this.includeSelf.set(value);
+    this.#persist({ includeSelf: value });
+  }
+
+  setManual(value: boolean): void {
+    this.manual.set(value);
+    this.#persist({ manual: value });
   }
 
   selectAudioMode(mode: HostAudioMode): void {
     this.audio.setMode(mode);
+    this.#persist({ audioMode: mode });
   }
 
   /** Stepper con clamp estricto [8, 15] y paso de 0.5s. */
   setListenDuration(value: number): void {
     this.audio.setListenDurationSec(value);
+    this.#persist({ listenDurationSec: this.audio.listenDurationSec() });
+  }
+
+  /** Recupera o descarta la sala guardada en este dispositivo. */
+  recoverRoom(): void {
+    void this.session.recoverRoom();
+  }
+
+  discardRecoverableRoom(): void {
+    this.session.discardRecoverableRoom();
+  }
+
+  /** Cada cambio del lobby se guarda en localStorage; nunca es estado de juego. */
+  #persist(patch: Parameters<HostPreferencesService['update']>[0]): void {
+    this.prefs.update(patch);
   }
 
   #restoreIntent(intent: SpotifyCreateIntent): void {
@@ -255,7 +291,7 @@ export class LobbyComponent {
     this.bots.set(Math.min(3, Math.max(0, intent.bots)));
     this.includeSelf.set(intent.includeSelf);
     this.manual.set(intent.manual);
-    this.audio.setMode(intent.audioMode ?? 'SPOTIFY_PREMIUM');
+    this.audio.setMode(intent.audioMode ?? 'ITUNES');
     this.audio.setListenDurationSec(intent.listenDurationSec ?? 8);
     // Ya volvimos de Spotify: el modo Premium queda activo pero no se redirige
     // otra vez porque el token ya está en memoria (wantsSpotifyLogin es false).

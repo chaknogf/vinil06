@@ -7,8 +7,16 @@ import {
   svgCover
 } from '../data/vinil06-catalog';
 import { VinilTrack } from '../models/game.models';
+import { parseYouTubeVideoId } from '../utils/youtube';
 
 type CatalogSource = 'idle' | 'remote' | 'local';
+
+/**
+ * El edge cache puede servir respuestas antiguas: filtramos también aquí los
+ * karaokes, tributos, instrumentales y compilaciones ajenas al pack.
+ */
+const BLOCKED_CATALOG =
+  /ethnic\s+psy|world\s+lounge|karaoke|tribute|parodia|instrumental|remix|en vivo|\blive\b/i;
 
 const PALETTES: readonly (readonly [string, string])[] = [
   ['#0ea5e9', '#1e1b4b'],
@@ -39,6 +47,7 @@ function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilT
     const title = typeof raw['title'] === 'string' ? raw['title'].trim() : '';
     const artist = typeof raw['artist'] === 'string' ? raw['artist'].trim() : '';
     if (!id || !title || !artist || seen.has(id)) continue;
+    if (BLOCKED_CATALOG.test(`${title} ${artist}`)) continue;
     seen.add(id);
 
     const year = typeof raw['year'] === 'number' && raw['year'] > 1900 ? raw['year'] : 2000;
@@ -55,10 +64,10 @@ function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilT
     const spotifyUri = rawUri.startsWith('spotify:track:') ? rawUri : '';
     const rawPreview = typeof raw['previewUrl'] === 'string' ? raw['previewUrl'].trim() : '';
     const previewUrl = rawPreview.startsWith('https://') ? rawPreview : '';
-    const rawYtQuery = typeof raw['youtubeQuery'] === 'string' ? raw['youtubeQuery'].trim() : '';
-    const youtubeQuery = rawYtQuery || `${artist} ${title}`.trim();
+    // Sin preview no hay juego: el host solo reproduce pistas que pueden sonar.
+    if (!previewUrl) continue;
     const rawYtId = typeof raw['youtubeVideoId'] === 'string' ? raw['youtubeVideoId'].trim() : '';
-    const youtubeVideoId = /^[\w-]{11}$/.test(rawYtId) ? rawYtId : '';
+    const youtubeVideoId = parseYouTubeVideoId(rawYtId);
 
     // Si la URL remota falla al cargar, AlbumArtComponent muestra su SVG local.
     tracks.push({
@@ -73,8 +82,7 @@ function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilT
       motif,
       cover: cover || svgCover({ title, artist, palette, motif }),
       ...(spotifyUri ? { spotifyUri } : {}),
-      ...(previewUrl ? { previewUrl } : {}),
-      youtubeQuery,
+      previewUrl,
       ...(youtubeVideoId ? { youtubeVideoId } : {})
     });
   }

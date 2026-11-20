@@ -2,45 +2,45 @@ import { Track, VinilTrack } from '../models/game.models';
 import { TRACK_PACKS } from './catalog';
 
 /**
- * Catálogo local de respaldo: 48 pistas curadas (12 packs × 4).
- * Cada portada es un SVG embebido en `data:image/svg+xml`: funciona sin red,
- * sin almacenamiento permanente y sin llamadas a Spotify.
+ * Catálogo local de respaldo: 48 pistas en español (12 packs × 4), con preview
+ * de iTunes verificado en cada una. Cada portada es un SVG embebido en
+ * `data:image/svg+xml`: funciona sin red, sin almacenamiento y sin Spotify.
  */
 export const CATALOG_PACKS = [
   {
-    id: 'viral',
-    label: 'Top Temporada / Viral Actual',
-    shortLabel: 'Viral',
-    icon: '🔥',
-    terms: ['bad bunny', 'the weeknd', 'dua lipa', 'karol g']
+    id: 'pop',
+    label: 'Pop en Español / Bandas',
+    shortLabel: 'Pop',
+    icon: '🎸',
+    terms: ['Maná', 'Juanes', 'Chayanne', 'pop en español']
   },
   {
-    id: 'clasicos',
-    label: 'Clásicos 80s & 90s',
-    shortLabel: '80s & 90s',
-    icon: '📼',
-    terms: ['michael jackson', 'queen', 'a-ha', 'soda stereo']
+    id: 'rancheras',
+    label: 'Rancheras y Banda',
+    shortLabel: 'Rancheras',
+    icon: '🤠',
+    terms: ['Vicente Fernández', 'Los Tigres del Norte', 'Banda MS', 'rancheras']
   },
   {
-    id: 'hits',
-    label: 'Hits 2000s & 2010s',
-    shortLabel: '2000s & 2010s',
-    icon: '💿',
-    terms: ['coldplay', 'shakira', 'daft punk', 'bruno mars']
+    id: 'baladas',
+    label: 'Baladas en Español',
+    shortLabel: 'Baladas',
+    icon: '💔',
+    terms: ['Luis Miguel', 'Alejandro Sanz', 'José José', 'baladas en español']
   },
   {
-    id: 'latina',
-    label: 'Fiesta Latina & Éxitos Globales',
-    shortLabel: 'Latina',
-    icon: '🌎',
-    terms: ['daddy yankee', 'carlos vives', 'enrique iglesias', 'don omar']
+    id: 'rock',
+    label: 'Rock en Español',
+    shortLabel: 'Rock',
+    icon: '🥁',
+    terms: ['Soda Stereo', 'Jarabe de Palo', 'Molotov', 'rock en español']
   },
   {
     id: 'mix',
     label: 'Mix Completo',
     shortLabel: 'Mix',
     icon: '✦',
-    terms: ['latin pop', 'rock classics', 'dance hits', 'pop hits']
+    terms: ['pop en español', 'rancheras', 'baladas en español', 'rock en español']
   }
 ] as const;
 
@@ -103,16 +103,14 @@ export const VINIL06_CATALOG: readonly VinilTrack[] = TRACK_PACKS.flatMap((pack)
 function belongsToPack(track: VinilTrack, id: CatalogPackId): boolean {
   const genre = track.genre.toLowerCase();
   switch (id) {
-    case 'viral':
-      return track.decade === '2020s' || track.decade === '2010s';
-    case 'clasicos':
-      return track.decade === '80s' || track.decade === '90s';
-    case 'hits':
-      return track.decade === '2000s' || track.decade === '2010s';
-    case 'latina':
-      return ['reggaetón', 'pop latino', 'urbano', 'balada', 'rock en español'].some((g) =>
-        genre.includes(g)
-      );
+    case 'pop':
+      return genre.includes('pop');
+    case 'rancheras':
+      return genre.includes('ranchera');
+    case 'baladas':
+      return genre.includes('balada');
+    case 'rock':
+      return genre.includes('rock');
     case 'mix':
       return true;
   }

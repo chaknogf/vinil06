@@ -9,11 +9,11 @@
  */
 
 const SEARCH_TERMS = {
-  viral: ['bad bunny', 'the weeknd', 'dua lipa', 'karol g'],
-  clasicos: ['michael jackson', 'queen', 'a-ha', 'soda stereo'],
-  hits: ['coldplay', 'shakira', 'daft punk', 'bruno mars'],
-  latina: ['daddy yankee', 'carlos vives', 'enrique iglesias', 'don omar'],
-  mix: ['latin pop', 'rock classics', 'dance hits', 'pop hits']
+  pop: ['Maná', 'Juanes', 'Chayanne', 'pop en español'],
+  rancheras: ['Vicente Fernández', 'Los Tigres del Norte', 'Banda MS', 'rancheras'],
+  baladas: ['Luis Miguel', 'Alejandro Sanz', 'José José', 'baladas en español'],
+  rock: ['Soda Stereo', 'Jarabe de Palo', 'Molotov', 'rock en español'],
+  mix: ['pop en español', 'rancheras', 'baladas en español', 'rock en español']
 };
 
 const PALETTES = [
@@ -39,8 +39,13 @@ function svgCover(title, artist) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+/** Descarta karaokes, tributos, instrumentales y compilaciones ajenas al pack. */
+const BLOCKED_CATALOG =
+  /ethnic\s+psy|world\s+lounge|karaoke|tribute|parodia|instrumental|remix|en vivo|\blive\b/i;
+
 function normalize(result) {
   if (!result.trackId || !result.trackName || !result.artistName) return null;
+  if (BLOCKED_CATALOG.test(`${result.trackName} ${result.artistName}`)) return null;
   // Sin preview no hay juego: descartamos pistas que no se pueden escuchar.
   const previewUrl = result.previewUrl;
   if (typeof previewUrl !== 'string' || !previewUrl.startsWith('https://')) return null;
@@ -61,9 +66,7 @@ function normalize(result) {
     palette: [from, to],
     motif: hash(id) % 4,
     cover: cover.startsWith('https://') ? cover : svgCover(result.trackName, result.artistName),
-    previewUrl,
-    // Consulta lista para el modo YouTube del host (sin ID: se busca en vivo).
-    youtubeQuery: `${result.artistName} ${result.trackName}`.trim()
+    previewUrl
   };
 }
 

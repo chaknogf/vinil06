@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
 import { KARAOKE_CHALLENGES, trackToOption } from '../data/catalog';
 import { VINIL06_CATALOG } from '../data/vinil06-catalog';
@@ -35,6 +35,9 @@ const PLAYER_COLORS = [
   'linear-gradient(135deg,#a3e635,#16a34a)'
 ];
 
+/** Sin preview no hay juego: el catálogo local solo aporta pistas audibles. */
+const AUDIBLE_CATALOG: readonly VinilTrack[] = VINIL06_CATALOG.filter((track) => !!track.previewUrl);
+
 interface AnswerRecord {
   readonly optionId: string;
   readonly arrivalMs: number;
@@ -43,14 +46,18 @@ interface AnswerRecord {
 /** Copia privada mínima para reconstruir la sala en el dispositivo del host. */
 export interface HostRoomBackup {
   readonly state: RoomState;
+  /** Preview de la pista en curso: solo vive en el host, nunca viaja a los jugadores. */
+  readonly audioUrl: string;
   readonly pack: RoundPack | null;
   readonly usedTrackIds: readonly string[];
+  readonly usageOrder: readonly string[];
   readonly answers: ReadonlyArray<readonly [string, AnswerRecord]>;
   readonly tracks: readonly VinilTrack[];
 }
 
 /**
- * Máquina de estados autoritativa del anfitrión. Todo vive en Signals/RAM.
+ * Máquina de estados autoritativa del anfitrión. Todo vive en Signals/RAM;
+ * un snapshot opcional se guarda en IndexedDB del propio dispositivo.
  * El host decide fases, tiempos y puntos; los clientes solo reciben snapshots.
  */
 @Injectable({ providedIn: 'root' })
@@ -72,9 +79,9 @@ export class GameEngineService {
   readonly players = signal<Player[]>([]);
   readonly results = signal<RoundResultEntry[]>([]);
   readonly karaoke = signal<KaraokeTurn | null>(null);
-  /** Canción que el anfitrión debe poner. No viaja en el snapshot de la sala. */
+  /** Canción que el anfitrión pone en su altavoz. No viaja a los invitados. */
   readonly hostTrack = signal<PublicOption | null>(null);
-  /** Preview audible en TODOS los dispositivos; no revela cuál carta es la correcta. */
+  /** Preview de iTunes de la carta correcta: es la fuente canónica de audio. */
   readonly audioUrl = signal('');
   readonly manual = signal(false);
 
@@ -98,17 +105,18 @@ export class GameEngineService {
       results: this.results(),
       karaoke: this.karaoke(),
       manual: this.manual(),
-      audioUrl: this.audioUrl(),
       listenDurationMs: this.#hostAudio.listenDurationMs(),
       hostAudioMode: this.#hostAudio.effectiveMode()
     };
   });
 
   #pack: RoundPack | null = null;
-  /** Pack elegido en el lobby (o catálogo local por defecto). */
-  #catalogTracks: readonly VinilTrack[] = VINIL06_CATALOG;
+  /** Pack elegido en el lobby; solo entran pistas con preview reproducible. */
+  #packCatalog: readonly VinilTrack[] = AUDIBLE_CATALOG;
   /** Toda pista mostrada o cantada queda marcada: nunca se repite en la partida. */
   #usedTrackIds = new Set<string>();
+  /** Orden de uso: permite reciclar el listado del host sin repetir de golpe. */
+  #usageOrder: string[] = [];
   #previewTrack: VinilTrack | null = null;
   #answers = new Map<string, AnswerRecord>();
   #answerOpenedAt = 0;
@@ -117,7 +125,8 @@ export class GameEngineService {
 
   /** Inyecta el pack sincronizado (solo RAM) antes de crear la sala. */
   setCatalog(tracks: readonly VinilTrack[]): void {
-    this.#catalogTracks = tracks.length ? tracks : VINIL06_CATALOG;
+    const audible = tracks.filter((track) => !!track.previewUrl);
+    this.#packCatalog = audible.length >= 4 ? audible : AUDIBLE_CATALOG;
   }
 
   createRoom(
@@ -194,13 +203,13 @@ export class GameEngineService {
     // Este signal NO se publica a los jugadores (no forma parte de snapshot).
     const trackToPlay = karaokeRound ? this.#previewTrack : pack.tracks[0];
     this.hostTrack.set(trackToPlay ? trackToOption(trackToPlay) : null);
-    // Prepara búsqueda/ID de YouTube y limpia avisos de la ronda anterior.
     this.#hostAudio.prepareTrack(trackToPlay);
-    this.#hostAudio.stopListen();
 
     this.#enterPhase('SPINNING');
     this.#audio.tone(392, 0.1, 'triangle', 0.06);
     this.#schedule(() => this.#finishSpin(), environment.timings.spinMs);
+    // El preview se reproduce en #finishSpin, dentro del clic de «Girar»; el
+    // Service ya fue desbloqueado al crear/entrar en la sala.
   }
 
   /** LOBBY/RESULT -> SPINNING; PODIUM -> partida nueva. */
@@ -219,7 +228,6 @@ export class GameEngineService {
     this.#clearTimers();
     this.#audio.stopBeat();
     this.#spotify.pause();
-    this.#hostAudio.stopListen();
     this.#enterPhase('PODIUM');
     this.#audio.tone(659.25, 0.18, 'sine', 0.09);
   }
@@ -258,14 +266,7 @@ export class GameEngineService {
     });
     this.hostTrack.set(track);
     this.#hostAudio.prepareTrack(track);
-    const mode: HostAudioMode = this.#hostAudio.effectiveMode();
-    if (mode === 'SPOTIFY_PREMIUM') {
-      void this.#spotify.play(track).then((ok) => {
-        if (!ok) this.#playFallback(sourceTrack.previewUrl ?? '', 'Spotify falló: suena el preview del comodín.');
-      });
-    } else if (mode === 'MANUAL') {
-      this.#preview.play(sourceTrack.previewUrl ?? '');
-    }
+    this.#playTrack(track, sourceTrack.previewUrl ?? '', 'Spotify falló: suena el preview del comodín.');
     this.#audio.flipChime();
     this.#haptics.flip();
   }
@@ -274,7 +275,6 @@ export class GameEngineService {
     const turn = this.karaoke();
     if (this.phase() !== 'KARAOKE_TURN' || !turn) return;
     this.#clearTimers();
-    this.#hostAudio.stopListen();
     this.#spotify.pause();
 
     const points = outcome === 'done' ? (turn.wildcardUsed ? 1 : 2) : 0;
@@ -318,8 +318,8 @@ export class GameEngineService {
     this.#stopHeartbeat();
     this.#audio.stopBeat();
     this.#spotify.pause();
-    this.#hostAudio.stopListen();
     this.#usedTrackIds.clear();
+    this.#usageOrder = [];
     this.#previewTrack = null;
     this.#answers.clear();
     this.#pack = null;
@@ -346,18 +346,16 @@ export class GameEngineService {
   backup(): HostRoomBackup {
     return {
       state: this.snapshot(),
+      audioUrl: this.audioUrl(),
       pack: this.#pack,
       usedTrackIds: [...this.#usedTrackIds],
+      usageOrder: [...this.#usageOrder],
       answers: [...this.#answers].map(([id, record]) => [id, { ...record }] as const),
-      tracks: [...this.#catalogTracks]
+      tracks: [...this.#packCatalog]
     };
   }
 
-  /**
-   * Rehidrata una sala guardada en este dispositivo. Aditivo: no cambia fases
-   * ni reglas de puntaje; solo restaura signals, temporizadores restantes y
-   * el contexto privado (pack, pistas usadas, respuestas).
-   */
+  /** Rehidrata una sala guardada en este dispositivo sin alterar las reglas. */
   restore(backup: HostRoomBackup): void {
     const state = backup?.state;
     if (!state?.roomCode) return;
@@ -374,15 +372,20 @@ export class GameEngineService {
     this.players.set(state.players.map((player) => ({ ...player })));
     this.results.set(state.results.map((result) => ({ ...result })));
     this.karaoke.set(state.karaoke ? { ...state.karaoke } : null);
+    this.hostTrack.set(
+      state.karaoke?.track ?? this.options().find((option) => option.id === state.correctId) ?? null
+    );
     this.#pack = backup.pack ?? null;
     this.#usedTrackIds = new Set(backup.usedTrackIds ?? []);
+    this.#usageOrder = [...(backup.usageOrder ?? [])];
     for (const [id, record] of backup.answers ?? []) this.#answers.set(id, { ...record });
 
+    const listening = state.phase === 'LISTEN_8S' || state.phase === 'KARAOKE_TURN';
+    this.audioUrl.set(listening ? backup.audioUrl ?? '' : '');
     const elapsed = Math.max(0, (state.hostNow || Date.now()) - state.phaseStartedAt);
     this.#enterPhase(state.phase);
     this.phaseStartedAt.set(Date.now() - elapsed);
     this.#tick.update((n) => n + 1);
-    this.audioUrl.set(state.audioUrl ?? '');
     this.#startHeartbeat();
 
     const remaining = (duration: number) => Math.max(250, duration - elapsed);
@@ -391,7 +394,6 @@ export class GameEngineService {
         this.#schedule(() => this.#finishSpin(), remaining(environment.timings.spinMs));
         break;
       case 'LISTEN_8S':
-        this.#hostAudio.startListen();
         this.#schedule(() => this.#beginFlip(), remaining(state.listenDurationMs));
         break;
       case 'FLIP_6S':
@@ -399,7 +401,6 @@ export class GameEngineService {
         this.#schedule(() => this.#finishRound(), remaining(ANSWER_DURATION_MS));
         break;
       case 'KARAOKE_TURN':
-        this.#hostAudio.startListen();
         this.#schedule(
           () => this.finishKaraoke('timeout'),
           remaining(state.karaoke?.durationMs ?? 18000)
@@ -407,6 +408,14 @@ export class GameEngineService {
         break;
       default:
         break;
+    }
+  }
+
+  /** Tras recuperar la sala, reanuda el preview si la fase de escucha sigue viva. */
+  resumeRestoredAudio(): void {
+    const phase = this.phase();
+    if ((phase === 'LISTEN_8S' || phase === 'KARAOKE_TURN') && this.audioUrl()) {
+      this.#preview.play(this.audioUrl());
     }
   }
 
@@ -440,11 +449,24 @@ export class GameEngineService {
     if (phase !== 'LISTEN_8S' && phase !== 'KARAOKE_TURN') {
       this.audioUrl.set('');
       this.#preview.stop();
-      this.#hostAudio.stopListen();
-    }
+      }
   }
 
-  /** Última red de seguridad: si la fuente externa falla, que haya sonido. */
+  /**
+   * Reproduce la pista correcta en el altavoz del host. iTunes siempre suena;
+   * Spotify solo sustituye al preview cuando está realmente conectado.
+   */
+  #playTrack(track: PublicOption | null, previewUrl: string, failureMessage: string): void {
+    if (this.#hostAudio.effectiveMode() === 'SPOTIFY_PREMIUM' && track) {
+      void this.#spotify.play(track).then((ok) => {
+        if (!ok) this.#playFallback(previewUrl, failureMessage);
+      });
+      return;
+    }
+    this.#preview.play(previewUrl);
+  }
+
+  /** Última red de seguridad: si Spotify falla, que haya sonido. */
   #playFallback(url: string, message: string): void {
     const phase = this.phase();
     if (!url || (phase !== 'LISTEN_8S' && phase !== 'KARAOKE_TURN')) return;
@@ -479,21 +501,55 @@ export class GameEngineService {
     return this.mode() === 'MIXED' && (index === 3 || index === 7 || index === 11);
   }
 
+  #activeCatalog(): readonly VinilTrack[] {
+    return this.#packCatalog;
+  }
+
+  #freshFrom(tracks: readonly VinilTrack[]): VinilTrack[] {
+    return tracks.filter((track) => !this.#usedTrackIds.has(track.id));
+  }
+
+  #markUsed(track: VinilTrack): void {
+    if (this.#usedTrackIds.has(track.id)) return;
+    this.#usedTrackIds.add(track.id);
+    this.#usageOrder.push(track.id);
+  }
+
   /**
-   * 4 pistas no usadas: la primera es la correcta y el resto señuelos.
-   * `usedTrackIds` garantiza que ninguna pista vuelva a aparecer en la partida.
+   * Recicla las pistas usadas más antiguas. Así un pack corto (o una partida
+   * con karaokes) da todas las rondas sin caer en pistas sin preview.
+   */
+  #recycleOldest(count: number): void {
+    const active = new Set(this.#activeCatalog().map((track) => track.id));
+    for (let i = 0; i < this.#usageOrder.length && count > 0; i++) {
+      const id = this.#usageOrder[i]!;
+      if (!active.has(id)) continue;
+      this.#usedTrackIds.delete(id);
+      this.#usageOrder.splice(i, 1);
+      i--;
+      count--;
+    }
+  }
+
+  #roundPool(): readonly VinilTrack[] {
+    let pool = this.#freshFrom(this.#activeCatalog());
+    if (pool.length < 4) {
+      this.#recycleOldest(4 - pool.length);
+      pool = this.#freshFrom(this.#activeCatalog());
+    }
+    return pool.length >= 4 ? pool : AUDIBLE_CATALOG;
+  }
+
+  /**
+   * 4 pistas no usadas del catálogo activo: la primera es la correcta y el
+   * resto señuelos. Con el listado del host se recicla en vez de mezclar otras.
    */
   #nextPack(): RoundPack {
-    const fresh = (tracks: readonly VinilTrack[]) =>
-      tracks.filter((track) => !this.#usedTrackIds.has(track.id));
-    let pool = fresh(this.#catalogTracks);
-    if (pool.length < 4) pool = fresh(VINIL06_CATALOG);
-    if (pool.length < 4) pool = [...VINIL06_CATALOG];
-
+    const pool = this.#roundPool();
     const [correct, ...rest] = shuffleArray(pool);
-    const correctTrack = correct ?? VINIL06_CATALOG[0]!;
+    const correctTrack = correct ?? AUDIBLE_CATALOG[0]!;
     const decoys = rest.slice(0, 3);
-    for (const track of [correctTrack, ...decoys]) this.#usedTrackIds.add(track.id);
+    for (const track of [correctTrack, ...decoys]) this.#markUsed(track);
 
     const chosen: RoundPack = {
       id: `round-${this.roundIndex()}-${correctTrack.id}`,
@@ -516,13 +572,9 @@ export class GameEngineService {
 
   /** Toma una pista fresca y la marca como usada (ruleta y turno coinciden). */
   #takeKaraokeTrack(): VinilTrack {
-    const fresh = (tracks: readonly VinilTrack[]) =>
-      tracks.filter((track) => !this.#usedTrackIds.has(track.id));
-    const pool = fresh(this.#catalogTracks);
-    const fallback = pool.length ? pool : fresh(VINIL06_CATALOG);
-    const source = fallback.length ? fallback : VINIL06_CATALOG;
-    const track = pickOne(source) ?? VINIL06_CATALOG[0]!;
-    this.#usedTrackIds.add(track.id);
+    const source = this.#roundPool();
+    const track = pickOne(source) ?? AUDIBLE_CATALOG[0]!;
+    this.#markUsed(track);
     return track;
   }
 
@@ -536,29 +588,13 @@ export class GameEngineService {
     this.options.set(pack.tracks.map(trackToOption));
     this.#enterPhase('LISTEN_8S');
     const url = pack.tracks[0]?.previewUrl ?? '';
-    // El preview de iTunes viaja a TODOS los dispositivos (sin spoilers): es la
-    // fuente universal de los invitados, sin cuenta ni API key.
+    // El preview es la fuente canónica: sale del altavoz del host y coincide
+    // exactamente con la carta marcada como correcta.
     this.audioUrl.set(url);
-    this.#hostAudio.startListen();
 
     // La ventana de escucha empieza ya: la latencia de la API no se la come.
     this.#schedule(() => this.#beginFlip(), this.#hostAudio.listenDurationMs());
-
-    const mode: HostAudioMode = this.#hostAudio.effectiveMode();
-    if (mode === 'SPOTIFY_PREMIUM') {
-      void this.#spotify.play(this.hostTrack()).then((ok) => {
-        if (!ok) {
-          this.#playFallback(url, 'Spotify no pudo reproducir: suena el preview en este dispositivo.');
-        }
-      });
-    } else if (mode === 'YOUTUBE') {
-      // El iframe suena solo durante la escucha; el panel ofrece un botón para
-      // arrancarlo si el navegador bloquea el autoplay.
-      this.#hostAudio.warn('YouTube en marcha. Si no suena, pulsa «Tocar para activar audio».');
-    } else {
-      // Sin fuente externa usable: el preview suena también en el host.
-      this.#preview.play(url);
-    }
+    this.#playTrack(this.hostTrack(), url, 'Spotify no pudo reproducir: suena el preview en este dispositivo.');
 
     this.#audio.startBeat(pack.bpm);
   }
@@ -593,20 +629,10 @@ export class GameEngineService {
     this.#enterPhase('KARAOKE_TURN');
     this.audioUrl.set(track.previewUrl ?? '');
     this.#hostAudio.prepareTrack(track);
-    this.#hostAudio.startListen();
     this.#schedule(() => this.finishKaraoke('timeout'), this.karaoke()?.durationMs ?? 18000);
 
     const url = track.previewUrl ?? '';
-    const mode: HostAudioMode = this.#hostAudio.effectiveMode();
-    if (mode === 'SPOTIFY_PREMIUM') {
-      void this.#spotify.play(this.hostTrack()).then((ok) => {
-        if (!ok) this.#playFallback(url, 'Spotify no pudo reproducir: suena el preview del karaoke.');
-      });
-    } else if (mode === 'YOUTUBE') {
-      this.#hostAudio.warn('YouTube en marcha. Si no suena, pulsa «Tocar para activar audio».');
-    } else {
-      this.#preview.play(url);
-    }
+    this.#playTrack(this.hostTrack(), url, 'Spotify no pudo reproducir: suena el preview del karaoke.');
     this.#audio.flipChime();
     this.#haptics.flip();
   }
@@ -616,8 +642,6 @@ export class GameEngineService {
     this.#audio.flipChime();
     this.#haptics.flip();
     this.#spotify.pause();
-    // Retirar el iframe es la forma fiable de silenciar YouTube sin IFrame API.
-    this.#hostAudio.stopListen();
     this.#enterPhase('FLIP_6S');
     this.#answerOpenedAt = performance.now();
     this.#answers.clear();

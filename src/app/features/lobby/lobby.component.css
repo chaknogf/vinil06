@@ -459,3 +459,166 @@
 .privacy-icon {
   font-size: 15px;
 }
+
+/* ============================================================
+   Tablet / escritorio: el wizard se convierte en dashboard.
+   Mobile (360–430 px) sigue siendo una sola columna.
+   ============================================================ */
+@media (min-width: 720px) {
+  .lobby {
+    max-width: 860px;
+    gap: 16px;
+  }
+
+  .hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding-top: 0;
+  }
+
+  .brand-disc {
+    width: 58px;
+    height: 58px;
+  }
+
+  .brand-name {
+    font-size: 34px;
+  }
+
+  .brand-tagline {
+    font-size: 12px;
+    max-width: 440px;
+  }
+
+  .hero-badges {
+    margin-top: 0;
+    max-width: 320px;
+    justify-content: flex-end;
+  }
+
+  .step {
+    margin-bottom: 16px;
+  }
+
+  .modes {
+    gap: 10px;
+  }
+
+  .mode-card {
+    min-height: 74px;
+  }
+
+  .join-panel {
+    max-width: 560px;
+    margin-inline: auto;
+    padding: 24px;
+  }
+
+  .privacy-note {
+    padding: 14px 16px;
+  }
+
+  .privacy-note p {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .lobby-create {
+    max-width: var(--wide-max);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+    grid-template-areas:
+      'hero hero'
+      'tabs tabs'
+      'modes room'
+      'pack  room'
+      'cta   cta'
+      'priv  priv';
+    gap: 18px 22px;
+    align-items: start;
+  }
+
+  .lobby-create .hero {
+    grid-area: hero;
+  }
+
+  .lobby-create .tabs {
+    grid-area: tabs;
+    justify-self: start;
+    min-width: 340px;
+    margin-top: 0;
+  }
+
+  .setup-modes {
+    grid-area: modes;
+  }
+
+  .setup-pack {
+    grid-area: pack;
+  }
+
+  .setup-room {
+    grid-area: room;
+  }
+
+  .lobby-create .cta {
+    grid-area: cta;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 22px;
+  }
+
+  .lobby-create .cta .btn {
+    grid-column: 1;
+  }
+
+  .lobby-create .cta-note {
+    grid-column: 2;
+    text-align: left;
+    margin-top: 0;
+  }
+
+  .lobby-create .privacy-note {
+    grid-area: priv;
+  }
+
+  .lobby-join {
+    max-width: 760px;
+  }
+}
+
+.recovery-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.recovery-banner p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.recovery-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.recovery-actions .btn {
+  min-height: 44px;
+}
+
+.btn-ghost {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}

@@ -59,7 +59,7 @@ export class RoomSyncService {
     );
   }
 
-  /** Borra la sala persistida (si el proveedor la tiene) y corta el canal. */
+  /** Cierra la sala en el proveedor (si aplica) y corta el canal. */
   closeRoom(): void {
     this.#provider.closeRoom?.();
     this.disconnect();

@@ -10,9 +10,9 @@ import { RealtimeCloudSyncProvider } from './core/sync/realtime-cloud-sync.provi
 import { ROOM_SYNC_PROVIDER, RoomSyncProvider } from './core/sync/room-sync.provider';
 
 /**
- * Peer + IndexedDB es el modo por defecto: el host guarda la sala en su
- * dispositivo. Firebase queda como respaldo y solo se activa si se pide
- * explícitamente (`syncProvider: 'firebase'`) y hay config web pegada.
+ * Peer es el modo por defecto: el host es autoridad y la sala vive solo en RAM.
+ * Firebase queda como respaldo y solo se activa si se pide explícitamente
+ * (`syncProvider: 'firebase'`) y hay config web pegada.
  */
 function selectSyncProvider(): Type<RoomSyncProvider> {
   if (environment.syncProvider === 'firebase') {

@@ -196,3 +196,23 @@
   font-size: 0.75rem;
   color: var(--text-dim);
 }
+
+/* El ranking vive en un carril lateral en tablet/escritorio. */
+@media (min-width: 900px) {
+  .board {
+    padding: 1rem;
+  }
+
+  .rows {
+    gap: 6px;
+  }
+
+  .row {
+    min-height: 44px;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .name {
+    font-size: 0.85rem;
+  }
+}

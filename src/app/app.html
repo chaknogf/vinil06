@@ -24,11 +24,7 @@
     </div>
   }
   <app-install-prompt />
-  @if (session.restoring()) {
-    <div class="sr-only" role="status">Recuperando tu sala…</div>
-  } @else {
-    <router-outlet />
-  }
+  <router-outlet />
 </div>
 
 <app-ephemeral-privacy-modal

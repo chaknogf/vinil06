@@ -3,9 +3,9 @@
     <app-host-board [state]="room" />
   } @else {
     <app-player-card
+      class="standalone-player"
       [state]="room"
       [clientId]="session.clientId"
-      [clockOffset]="session.clockOffset()"
       [canInteract]="true"
     />
   }

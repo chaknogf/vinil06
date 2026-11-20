@@ -7,58 +7,41 @@ import {
   Track
 } from '../models/game.models';
 import { SpotifyHostAudioService } from './spotify-host-audio.service';
-import { YoutubeHostAudioService } from './youtube-host-audio.service';
 
 const DEFAULT_LISTEN_SEC = 8;
 
-/** Acepta un ID de 11 caracteres o una URL de YouTube/watch/youtu.be/embed/shorts. */
-export function parseYouTubeId(raw: string): string {
-  const value = raw.trim();
-  if (/^[\w-]{11}$/.test(value)) return value;
-  const match = value.match(
-    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/i
-  );
-  return match?.[1] ?? '';
-}
-
 /**
- * Controla la fuente de audio del ANFITRIÓN sin Account ni persistencia.
+ * Elige la fuente de audio del ANFITRIÓN para la fase de escucha.
  *
- * - SPOTIFY_PREMIUM: delega en SpotifyHostAudioService (PKCE, token en RAM).
- * - YOUTUBE: prepara la búsqueda/vídeo de la pista y muestra el reproductor solo
- *   durante la escucha; al voltear se retira, que es la forma fiable de silenciarlo
- *   sin depender de la IFrame API ni de permisos de autoplay.
- * - MANUAL: el host avanza con los botones del tablero.
+ * - ITUNES (por defecto): el motor reproduce en el altavoz del host el preview
+ *   de ~30 s de la pista correcta. No pide cuenta, clave ni red extra: el mismo
+ *   `VinilTrack` que genera la carta trae su `previewUrl`, así que carta y audio
+ *   coinciden siempre. Los invitados solo ven las cartas: hay que estar presente.
+ * - SPOTIFY_PREMIUM: opcional; reproduce esa misma pista en el dispositivo del
+ *   host y cae al preview si Spotify no está disponible.
  *
- * Cualquier fallo de Premium/YouTube degrada a una alternativa avanzable: la
- * ronda nunca se queda esperando audio.
+ * YouTube quedó fuera del motor: sin API no se pueden enumerar títulos de una
+ * playlist y el iframe no sabía qué vídeo correspondía a cada carta.
  */
 @Injectable({ providedIn: 'root' })
 export class HostAudioControllerService {
   readonly spotify = inject(SpotifyHostAudioService);
-  readonly youtube = inject(YoutubeHostAudioService);
 
-  readonly mode = signal<HostAudioMode>('MANUAL');
+  readonly mode = signal<HostAudioMode>('ITUNES');
   /** Segundos de escucha elegidos por el host (8..15, paso de 0.5s). */
   readonly listenDurationSec = signal(DEFAULT_LISTEN_SEC);
-  readonly listening = signal(false);
-
-  readonly youtubeQuery = signal('');
-  readonly youtubeVideoId = signal('');
   readonly notice = signal('');
 
-  /**
-   * Modo realmente aplicado. Antes caíamos a YouTube aunque no hubiera vídeo,
-   * y el tablero suprimía el preview: silencio total. Ahora YouTube solo se
-   * aplica si hay un ID de vídeo; si no, suena el preview de iTunes.
-   */
+  /** Nunca cambia de fuente a mitad de ronda: la fase congela la decisión. */
   readonly effectiveMode = computed<HostAudioMode>(() => {
-    if (this.mode() === 'SPOTIFY_PREMIUM') {
-      const ready = this.spotify.status() === 'connected' && !this.spotify.playbackFailed();
-      if (ready) return 'SPOTIFY_PREMIUM';
-      return this.youtubeVideoId() ? 'YOUTUBE' : 'MANUAL';
+    if (
+      this.mode() === 'SPOTIFY_PREMIUM' &&
+      this.spotify.status() === 'connected' &&
+      !this.spotify.playbackFailed()
+    ) {
+      return 'SPOTIFY_PREMIUM';
     }
-    return this.youtubeVideoId() ? 'YOUTUBE' : 'MANUAL';
+    return 'ITUNES';
   });
 
   readonly listenDurationMs = computed(() =>
@@ -68,22 +51,21 @@ export class HostAudioControllerService {
   readonly spotifyNotice = computed(() => {
     if (this.mode() !== 'SPOTIFY_PREMIUM') return '';
     if (this.spotify.status() === 'connected' && this.spotify.playbackFailed()) {
-      return 'Spotify no pudo reproducir esta pista. Suena el preview: reintenta el dispositivo o cambia la fuente.';
+      return 'Spotify no pudo reproducir esta pista. Suena el preview de iTunes: reintenta el dispositivo o cambia la fuente.';
     }
     switch (this.spotify.status()) {
       case 'free':
-        return 'Tu Spotify es Free: no podemos controlarlo. Suena el preview; usa YouTube si quieres vídeo.';
+        return 'Tu Spotify es Free: no podemos controlarlo. Suena el preview de iTunes; la ronda sigue igual.';
       case 'no-device':
-        return 'Spotify no tiene un dispositivo activo. Suena el preview; abre Spotify o reintenta.';
+        return 'Spotify no tiene un dispositivo activo. Suena el preview de iTunes; abre Spotify o reintenta.';
       case 'error':
       case 'not-configured':
-        return 'Spotify no está disponible. Suena el preview; cambia la fuente si quieres.';
+        return 'Spotify no está disponible. Suena el preview de iTunes; cambia la fuente si quieres.';
       default:
         return '';
     }
   });
 
-  /** Desconexión real de Spotify: instruye el botón «Conectar» del panel. */
   readonly spotifyDisconnected = computed(
     () =>
       this.mode() === 'SPOTIFY_PREMIUM' &&
@@ -93,95 +75,31 @@ export class HostAudioControllerService {
 
   readonly activeNotice = computed(() => this.spotifyNotice() || this.notice());
 
-  readonly youtubeSearchUrl = computed(() => {
-    const query = this.youtubeQuery().trim() || 'Vinil06 canción';
-    return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-  });
-
-  readonly youtubeEmbedUrl = computed(() => {
-    const id = this.youtubeVideoId();
-    // La app retira el iframe al pasar de fase; el autoplay se pide igual para
-    // que arranque nada más pulsar el enlace del host.
-    const origin =
-      typeof window === 'undefined' ? '' : `&origin=${encodeURIComponent(window.location.origin)}`;
-    // enablejsapi permite arrancar el vídeo con un postMessage desde el botón
-    // «Tocar para activar audio» cuando el navegador bloquea el autoplay.
-    return id
-      ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1&playsinline=1&rel=0&enablejsapi=1${origin}`
-      : '';
-  });
-
-  readonly modeLabel = computed(() => {
-    const selected = this.mode();
-    const base =
-      selected === 'SPOTIFY_PREMIUM' ? 'Spotify Premium' : selected === 'YOUTUBE' ? 'YouTube' : 'Manual';
-    const effective = this.effectiveMode();
-    if (selected === effective) return base;
-    return `${base} → ${effective === 'YOUTUBE' ? 'YouTube' : 'preview iTunes'}`;
-  });
+  readonly modeLabel = computed(() =>
+    this.effectiveMode() === 'SPOTIFY_PREMIUM' ? 'Spotify Premium' : 'iTunes · preview en el host'
+  );
 
   setMode(mode: HostAudioMode): void {
     this.mode.set(mode);
     this.notice.set('');
-    if (mode !== 'SPOTIFY_PREMIUM') this.listening.set(false);
   }
 
   setListenDurationSec(value: number): void {
     const safe = Number.isFinite(value) ? value : DEFAULT_LISTEN_SEC;
-    // Clamp estricto [8, 15] y paso de 0.5s para que el cronómetro sea legible.
-    this.listenDurationSec.set(
-      Math.min(15, Math.max(8, Math.round(safe * 2) / 2))
-    );
+    this.listenDurationSec.set(Math.min(15, Math.max(8, Math.round(safe * 2) / 2)));
   }
 
-  /** Prepara la búsqueda de la pista recién sorteada. La llama el motor. */
+  /** Avisa si Premium no está listo; iTunes siempre puede sonar. */
   prepareTrack(track: Track | PublicOption | null | undefined): void {
     if (!track) {
-      this.youtubeQuery.set('');
-      this.youtubeVideoId.set('');
+      this.notice.set('');
       return;
     }
-    const known = track as Partial<Track>;
-    this.youtubeQuery.set(
-      known.youtubeQuery?.trim() || `${track.artist} ${track.title}`.trim()
-    );
-    // Si el catálogo trae un ID lo usamos; si no, conservamos el que el host
-    // pegó en el tablero (puede hacerlo antes de girar la ruleta).
-    const trackVideoId = parseYouTubeId(known.youtubeVideoId ?? '');
-    if (trackVideoId) this.youtubeVideoId.set(trackVideoId);
-    const spotifyDown =
-      this.mode() === 'SPOTIFY_PREMIUM' && this.spotify.status() !== 'connected';
     this.notice.set(
-      spotifyDown
-        ? 'Spotify desconectado: suena el preview. Pulsa «Conectar Spotify» o pega un vídeo de YouTube.'
-        : this.mode() === 'YOUTUBE' && !this.youtubeVideoId()
-          ? 'Sin vídeo de YouTube: suena el preview de iTunes. Pega un enlace o abre la búsqueda.'
-          : ''
+      this.mode() === 'SPOTIFY_PREMIUM' && this.spotify.status() !== 'connected'
+        ? 'Spotify desconectado: suena el preview de iTunes en el altavoz del host.'
+        : ''
     );
-  }
-
-  setYouTubeInput(raw: string): boolean {
-    const id = parseYouTubeId(raw);
-    if (!id) {
-      this.notice.set('Pega un enlace de YouTube o un ID de 11 caracteres.');
-      return false;
-    }
-    this.youtubeVideoId.set(id);
-    this.notice.set('');
-    return true;
-  }
-
-  openYouTube(): void {
-    window.open(this.youtubeSearchUrl(), '_blank', 'noopener,noreferrer');
-  }
-
-  /** Fronteras de fase: el reproductor de YouTube solo vive durante la escucha. */
-  startListen(): void {
-    this.listening.set(true);
-  }
-
-  stopListen(): void {
-    this.listening.set(false);
   }
 
   warn(message: string): void {
@@ -192,10 +110,8 @@ export class HostAudioControllerService {
     this.notice.set('');
   }
 
+  /** Solo limpia avisos: modo y duración son preferencias y sobreviven a la sala. */
   reset(): void {
-    this.listening.set(false);
-    this.youtubeQuery.set('');
-    this.youtubeVideoId.set('');
     this.notice.set('');
   }
 }
