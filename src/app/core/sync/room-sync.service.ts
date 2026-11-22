@@ -19,6 +19,7 @@ export class RoomSyncService {
   readonly status: Observable<ConnectionStatus> = this.#provider.status;
   readonly connectionCount$: Observable<number> = this.#provider.connectionCount$;
   readonly presence$: Observable<readonly string[]> | null = this.#provider.presence$ ?? null;
+  readonly lastError = this.#provider.lastError ?? null;
   readonly kind = this.#provider.kind;
 
   #roomCode = '';

@@ -28,6 +28,10 @@ export class HostAudioPanelComponent {
   readonly retrying = signal(false);
   readonly successNotice = signal('');
 
+  /** En HTTP plano (IP LAN) el PKCE no puede arrancar: no ofrecemos el login. */
+  readonly spotifyBlocked = computed(() => !this.audio.spotify.canConnect);
+  readonly spotifyBlockedReason = computed(() => this.audio.spotify.connectBlockedReason);
+
   readonly spotifyNeedsRetry = computed(
     () =>
       this.audio.mode() === 'SPOTIFY_PREMIUM' &&
@@ -69,6 +73,15 @@ export class HostAudioPanelComponent {
     this.successNotice.set('Usando el preview de iTunes en este dispositivo.');
   }
 
+  selectSpotify(): void {
+    if (this.spotifyBlocked()) {
+      this.audio.warn(this.spotifyBlockedReason());
+      this.useItunes();
+      return;
+    }
+    this.audio.setMode('SPOTIFY_PREMIUM');
+  }
+
   async retrySpotify(): Promise<void> {
     this.retrying.set(true);
     const ok = await this.audio.spotify.retryDevice();
@@ -87,6 +100,11 @@ export class HostAudioPanelComponent {
    * host puede recuperarla desde el lobby al volver.
    */
   async connectSpotify(): Promise<void> {
+    if (this.spotifyBlocked()) {
+      this.audio.warn(this.spotifyBlockedReason());
+      this.useItunes();
+      return;
+    }
     if (
       this.session.inSession() &&
       !window.confirm(

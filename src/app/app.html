@@ -17,10 +17,13 @@
     <div class="connection-banner" role="status">
       @if (session.role() === 'host') {
         No pudimos publicar tu sala · los invitados no podrán entrar.
-        <button type="button" class="connection-retry" (click)="session.retryConnection()">Reintentar ahora</button>
       } @else {
-        No se pudo conectar con la sala. Comprueba el código y que el anfitrión tenga Vinil06 abierto.
+        Conexión perdida con la sala. Reintentamos en segundo plano y conservamos tu puesto.
+        @if (session.connectionDetail()) {
+          <span class="connection-detail">({{ session.connectionDetail() }})</span>
+        }
       }
+      <button type="button" class="connection-retry" (click)="session.retryConnection()">Reintentar ahora</button>
     </div>
   }
   <app-install-prompt />

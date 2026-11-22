@@ -9,12 +9,57 @@
  */
 
 const SEARCH_TERMS = {
-  pop: ['Maná', 'Juanes', 'Chayanne', 'pop en español'],
-  rancheras: ['Vicente Fernández', 'Los Tigres del Norte', 'Banda MS', 'rancheras'],
-  baladas: ['Luis Miguel', 'Alejandro Sanz', 'José José', 'baladas en español'],
-  rock: ['Soda Stereo', 'Jarabe de Palo', 'Molotov', 'rock en español'],
-  mix: ['pop en español', 'rancheras', 'baladas en español', 'rock en español']
+  pop: [
+    'Maná', 'Juanes', 'Chayanne', 'Shakira', 'Ricky Martin', 'Enrique Iglesias',
+    'Gloria Estefan', 'Luis Fonsi', 'Carlos Vives', 'Juan Luis Guerra',
+    'Marc Anthony', 'Thalía', 'Paulina Rubio', 'pop en español', 'pop latino'
+  ],
+  rancheras: [
+    'Vicente Fernández', 'Los Tigres del Norte', 'Banda MS', 'Alejandro Fernández',
+    'Pepe Aguilar', 'Julión Álvarez', 'Gerardo Ortiz', 'Banda Los Recoditos',
+    'Banda Carnaval', 'Los Ángeles Azules', 'rancheras', 'mariachi', 'corridos',
+    'banda sinaloense', 'regional mexicano'
+  ],
+  baladas: [
+    'Luis Miguel', 'Alejandro Sanz', 'José José', 'Juan Gabriel', 'Laura Pausini',
+    'Rocío Dúrcal', 'Raphael', 'Camilo Sesto', 'Ricardo Arjona', 'Franco De Vita',
+    'Gloria Estefan', 'baladas en español', 'balada romántica', 'canciones románticas'
+  ],
+  rock: [
+    'Soda Stereo', 'Jarabe de Palo', 'Molotov', 'Los Enanitos Verdes', 'El Tri',
+    'Caifanes', 'Héroes del Silencio', 'Bunbury', 'Andrés Calamaro', 'Charly García',
+    'Fito Páez', 'Divididos', 'Los Auténticos Decadentes', 'rock en español',
+    'rock alternativo español'
+  ],
+  'pop-en': [
+    'Britney Spears', 'Justin Timberlake', 'Beyoncé', 'Lady Gaga', 'Katy Perry',
+    'Taylor Swift', 'Rihanna', 'Ariana Grande', 'Ed Sheeran', 'Adele',
+    'Bruno Mars', 'Maroon 5', 'Coldplay', 'OneRepublic', 'The Weeknd',
+    'Billie Eilish', 'Dua Lipa', 'Harry Styles', 'Olivia Rodrigo', 'Sia',
+    'Avril Lavigne', 'Shawn Mendes', 'Jennifer Lopez', 'David Guetta',
+    'pop hits 2000s', 'pop hits 2010s', 'pop hits 2020s', 'english pop 2000s'
+  ],
+  latino: [
+    'Marc Anthony', 'Gilberto Santa Rosa', 'El Gran Combo', 'Sonora Ponceña',
+    'Willie Colón', 'Héctor Lavoe', 'Rubén Blades', 'Celía Cruz',
+    'salsa', 'salsa romántica', 'Juan Luis Guerra', 'Wilfrido Vargas',
+    'Los Hermanos Rosario', 'Olga Tañón', 'merengue', 'Daddy Yankee',
+    'Don Omar', 'Wisin y Yandel', 'Bad Bunny', 'J Balvin', 'Karol G',
+    'Ozuna', 'Rauw Alejandro', 'Farruko', 'Sech', 'reguetón', 'urbano latino'
+  ],
+  mix: [
+    'pop en español', 'rancheras', 'baladas en español', 'rock en español',
+    'pop latino', 'regional mexicano', 'merengue', 'salsa', 'cumbia',
+    'Maná', 'Los Tigres del Norte', 'Soda Stereo', 'Shakira', 'Juanes',
+    'Luis Miguel', 'Alejandro Sanz', 'Taylor Swift', 'Ed Sheeran', 'Lady Gaga',
+    'The Weeknd', 'Dua Lipa', 'pop hits 2000s', 'pop hits 2010s',
+    'salsa', 'merengue', 'reguetón', 'Daddy Yankee', 'Juan Luis Guerra',
+    'Bad Bunny', 'Marc Anthony'
+  ]
 };
+
+/** Pool amplio: 12 rondas × 4 cartas necesitan margen para no repetir. */
+const MAX_TRACKS = 200;
 
 const PALETTES = [
   ['#0ea5e9', '#1e1b4b'],
@@ -29,6 +74,18 @@ function hash(value) {
   return [...value].reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) >>> 0, 7);
 }
 
+/** iTunes devuelve la misma canción en varias ediciones con trackId distinto. */
+function songKey(title, artist) {
+  const clean = (value) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  return `${clean(title)}|${clean(artist)}`;
+}
+
 function xml(value) {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -41,7 +98,7 @@ function svgCover(title, artist) {
 
 /** Descarta karaokes, tributos, instrumentales y compilaciones ajenas al pack. */
 const BLOCKED_CATALOG =
-  /ethnic\s+psy|world\s+lounge|karaoke|tribute|parodia|instrumental|remix|en vivo|\blive\b/i;
+  /ethnic\s+psy|world\s+lounge|karaoke|tribute|parodia|instrumental|remix|remaster|remasterizado|radio edit|en vivo|en directo|\blive\b/i;
 
 function normalize(result) {
   if (!result.trackId || !result.trackName || !result.artistName) return null;
@@ -71,7 +128,7 @@ function normalize(result) {
 }
 
 async function search(term) {
-  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=14&country=US`;
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=100&country=US`;
   const response = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!response.ok) return [];
   const body = await response.json();
@@ -91,19 +148,32 @@ export default async function handler(req, res) {
 
   try {
     const batches = await Promise.allSettled(terms.map(search));
+    // Intercalamos las listas: si se concatenan, el tope se llena con los dos
+    // primeros artistas y el "mix" deja de ser variado.
+    const lists = batches
+      .filter((batch) => batch.status === 'fulfilled')
+      .map((batch) => batch.value);
+    const longest = Math.max(0, ...lists.map((list) => list.length));
     const seen = new Set();
+    const seenSongs = new Set();
     const tracks = [];
 
-    for (const batch of batches) {
-      if (batch.status !== 'fulfilled') continue;
-      for (const item of batch.value) {
+    for (let i = 0; i < longest && tracks.length < MAX_TRACKS; i++) {
+      for (const list of lists) {
+        const item = list[i];
+        if (!item) continue;
         const track = normalize(item);
         if (!track || seen.has(track.id)) continue;
+        // El pack de pop inglés empieza en 2000: iTunes mezcla clásicos de los
+        // 90 en las búsquedas de artista (Britney, Backstreet Boys, etc.).
+        if (pack === 'pop-en' && track.year < 2000) continue;
+        const key = songKey(track.title, track.artist);
+        if (seenSongs.has(key)) continue;
         seen.add(track.id);
+        seenSongs.add(key);
         tracks.push(track);
-        if (tracks.length >= 32) break;
+        if (tracks.length >= MAX_TRACKS) break;
       }
-      if (tracks.length >= 32) break;
     }
 
     if (tracks.length < 4) {

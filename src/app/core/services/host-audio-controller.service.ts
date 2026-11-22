@@ -57,7 +57,7 @@ export class HostAudioControllerService {
       case 'free':
         return 'Tu Spotify es Free: no podemos controlarlo. Suena el preview de iTunes; la ronda sigue igual.';
       case 'no-device':
-        return 'Spotify no tiene un dispositivo activo. Suena el preview de iTunes; abre Spotify o reintenta.';
+        return 'Spotify no tiene un dispositivo activo: en móvil abre la app o usa una bocina. Suena el preview de iTunes.';
       case 'error':
       case 'not-configured':
         return 'Spotify no está disponible. Suena el preview de iTunes; cambia la fuente si quieres.';

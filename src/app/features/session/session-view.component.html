@@ -16,8 +16,11 @@
         <span class="badge badge-danger"><span class="dot"></span> Sin conexión con la sala</span>
         <p class="connecting-title">No pudimos contactar al anfitrión</p>
         <p class="connecting-copy">
-          Comprueba el código y que el anfitrión tenga Vinil06 abierto. Seguimos intentando en segundo plano.
+          Comprueba el código y que el anfitrión tenga Vinil06 abierto. Seguimos intentando en segundo plano con un Peer nuevo en cada intento; tu apodo y tus puntos se conservan.
         </p>
+        @if (session.connectionDetail()) {
+          <p class="connecting-copy">Motivo: {{ session.connectionDetail() }}</p>
+        }
         <button type="button" class="btn btn-ghost" (click)="session.retryConnection()">
           Reintentar ahora
         </button>

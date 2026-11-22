@@ -61,6 +61,40 @@ export class PreviewAudioService {
       });
   }
 
+  /**
+   * Descarga el preview antes de que empiece la escucha, sobre el MISMO elemento
+   * que luego lo reproduce. `play()` reutiliza el `src`, así que el cronómetro
+   * de 8–15 s no se come la latencia de red.
+   */
+  preload(url: string): void {
+    if (!url) return;
+    const audio = this.#ensure();
+    audio.preload = 'auto';
+    if (audio.src !== url) {
+      audio.src = url;
+      try {
+        audio.load();
+      } catch {
+        // Algunos navegadores no permiten forzar la carga; play() lo intentará.
+      }
+    }
+  }
+
+  /** Cancela la precarga en vuelo (nueva ronda, salida, etc.). */
+  cancelPreload(): void {
+    const audio = this.#element;
+    if (audio && !this.playing()) {
+      audio.pause();
+      audio.removeAttribute('src');
+      try {
+        audio.load();
+      } catch {
+        // Nada que liberar si no había fuente.
+      }
+    }
+    this.#url = '';
+  }
+
   /** Reintento explícito desde el botón "Tocar para escuchar". */
   retry(): void {
     if (this.#url) this.play(this.#url);

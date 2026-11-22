@@ -4,6 +4,7 @@ import { ConnectionStatus, GameMode, Role, RoomState, VinilTrack } from '../mode
 import { createClientId } from '../utils/random';
 import { RoomSyncService } from '../sync/room-sync.service';
 import { HostRoomRecord, HostRoomStore } from '../sync/host-room-store.service';
+import { GuestRoomRecord, GuestRoomStore } from '../sync/guest-room-store.service';
 import { GameEngineService, LOCAL_PLAYER_ID } from './game-engine.service';
 import { HostAudioControllerService } from './host-audio-controller.service';
 import { PreviewAudioService } from './preview-audio.service';
@@ -32,9 +33,11 @@ export class GameSessionService implements OnDestroy {
   readonly #hostAudio = inject(HostAudioControllerService);
   readonly #store = inject(HostRoomStore);
   readonly #preview = inject(PreviewAudioService);
+  readonly #guestStore = inject(GuestRoomStore);
   readonly #destroyRef = inject(DestroyRef);
 
-  readonly clientId = createClientId();
+  /** Estable mientras dure la sala: se restaura del dispositivo al volver. */
+  clientId = createClientId();
   readonly role = signal<Role | null>(null);
   readonly nickname = signal('');
   readonly roomCode = signal('');
@@ -73,13 +76,16 @@ export class GameSessionService implements OnDestroy {
 
   /** Última sala guardada en este dispositivo, lista para recuperar desde el lobby. */
   readonly recoverableRoom = signal<HostRoomRecord | null>(null);
+  /** Última sala de invitado guardada en este dispositivo (30 min). */
+  readonly recoverableGuestRoom = signal<GuestRoomRecord | null>(null);
+  readonly connectionDetail = computed(() => this.#sync.lastError?.() ?? '');
   readonly recovering = signal(false);
 
   /** Canales WebRTC abiertos (solo peer; con local/cloud el conteo sale del snapshot). */
   readonly peerConnections = signal(0);
   /** Jugadores reales en la sala, sin bots: lo que ve el host antes de girar. */
   readonly onlinePlayers = computed(() =>
-    (this.viewState()?.players ?? []).filter((player) => !player.isBot)
+    (this.viewState()?.players ?? []).filter((player) => !player.isBot && player.connected)
   );
   readonly onlineCount = computed(() => this.onlinePlayers().length);
   readonly onlineNames = computed(() => this.onlinePlayers().map((player) => player.name));
@@ -91,10 +97,24 @@ export class GameSessionService implements OnDestroy {
   /** Firma del snapshot sin `hostNow`: evita publicar el estado en cada latido. */
   #lastStateSignature = '';
   #roomCreatedAt = 0;
+  #lastStateAt = 0;
+  #lastAnswer: { readonly optionId: string; readonly roundIndex: number } | null = null;
+  #replayedAnswerRound = -1;
   #subs: Subscription[] = [];
-  #unloadHandler: (() => void) | null = null;
+  #unloadHandler: ((event: Event) => void) | null = null;
+  readonly #visibilityHandler = () => {
+    if (document.visibilityState === 'visible') this.#resumeForeground();
+  };
+  readonly #pageshowHandler = () => this.#resumeForeground();
+  readonly #onlineHandler = () => this.#resumeForeground();
 
   constructor() {
+    // Un invitado que vuelve conserva su clientId: el host lo reconoce y le
+    // devuelve su marcador. Nada de estado de juego se persiste localmente.
+    const guest = this.#guestStore.load();
+    if (guest?.clientId) this.clientId = guest.clientId;
+    this.recoverableGuestRoom.set(guest);
+
     // Recuperación explícita: nunca reabrimos una sala sin que el host lo pida.
     void this.#loadRecoverableRoom();
 
@@ -105,6 +125,9 @@ export class GameSessionService implements OnDestroy {
           // El HELLO se envía cuando el DataChannel ya está abierto. Si se
           // reenvía tras una reconexión, el host lo ignora por clientId.
           this.#sendHello();
+          // El host solo emite STATE cuando cambia la firma: sin pedirlo aquí,
+          // quien reconecta se queda sin tablero hasta el siguiente cambio de fase.
+          this.#sync.publish('STATE_REQUEST', {});
         } else if (status !== 'connected') {
           this.#helloSent = false;
         }
@@ -128,6 +151,16 @@ export class GameSessionService implements OnDestroy {
           this.#engine.addPlayer(message.clientId, message.payload.nickname);
           this.#lastSeen.set(message.clientId, Date.now());
         }
+      })
+    );
+
+    // Un jugador que reconecta pide el snapshot: sin esto podía quedarse en
+    // "Esperando el tablero" hasta el siguiente cambio de fase.
+    this.#subs.push(
+      this.#sync.ofType('STATE_REQUEST').subscribe((message) => {
+        if (this.role() !== 'host') return;
+        this.#lastSeen.set(message.clientId, Date.now());
+        this.#sync.publish('STATE', this.#engine.snapshot());
       })
     );
 
@@ -173,8 +206,10 @@ export class GameSessionService implements OnDestroy {
     this.#subs.push(
       this.#sync.ofType('STATE').subscribe((message) => {
         if (this.role() === 'player') {
+          this.#lastStateAt = Date.now();
           this.remoteState.set(message.payload);
           this.#updateClockOffset(message.payload.hostNow);
+          this.#replayAnswer(message.payload);
         }
       })
     );
@@ -184,6 +219,7 @@ export class GameSessionService implements OnDestroy {
     // los cronómetros usan `phaseStartedAt` + `clockOffset`, no `hostNow`.
     this.#subs.push(
       this.#sync.ofType('PING').subscribe((message) => {
+        this.#lastStateAt = Date.now();
         this.#updateClockOffset(message.payload.hostNow);
         const current = this.remoteState();
         if (current) this.remoteState.set({ ...current, hostNow: message.payload.hostNow });
@@ -206,10 +242,31 @@ export class GameSessionService implements OnDestroy {
       this.#sync.publish('PING', { hostNow: state.hostNow });
     });
 
-    this.#unloadHandler = () => this.leave();
+    this.#unloadHandler = (event: Event) => {
+      // bfcache (típico en iOS al cambiar de app): la página vuelve igual, no
+      // hay que destruir el Peer ni borrar la sesión.
+      if ((event as PageTransitionEvent).persisted) return;
+      // Cerrar la pestaña NO debe contar como abandono del juego: guardamos la
+      // identidad y nos vamos sin BYE para conservar el marcador al volver.
+      this.leave({ keepGuestSession: true, silent: true });
+    };
     window.addEventListener('pagehide', this.#unloadHandler);
     window.addEventListener('beforeunload', this.#unloadHandler);
+    window.addEventListener('pageshow', this.#pageshowHandler);
+    document.addEventListener('visibilitychange', this.#visibilityHandler);
+    window.addEventListener('online', this.#onlineHandler);
     this.#destroyRef.onDestroy(() => this.#removeUnloadListeners());
+  }
+
+  /** Al volver al foreground: presence, snapshot y reintento si hace falta. */
+  #resumeForeground(): void {
+    const role = this.role();
+    if (!role) return;
+    if (role === 'player') {
+      this.#sendHello(true);
+      if (this.connection() === 'connected') this.#sync.publish('STATE_REQUEST', {});
+    }
+    if (this.connection() !== 'connected') this.retryConnection();
   }
 
   /** Paso 1: el host elige opciones; el modal bloqueante se muestra antes de activar. */
@@ -264,9 +321,27 @@ export class GameSessionService implements OnDestroy {
     this.remoteState.set(null);
     this.clockOffset.set(0);
     this.#helloSent = false;
+    this.#lastStateAt = Date.now();
+    this.#lastAnswer = null;
+    this.#replayedAnswerRound = -1;
+    this.#guestStore.save(code, name, this.clientId);
+    this.recoverableGuestRoom.set(this.#guestStore.load());
     this.#sync.connect(code, 'player', this.clientId);
     this.#startPresence();
     this.#sendHello();
+  }
+
+  /** Vuelve a la sala anterior con el mismo clientId y apodo. */
+  resumeGuestRoom(): void {
+    const saved = this.recoverableGuestRoom() ?? this.#guestStore.load();
+    if (!saved) return;
+    if (saved.clientId) this.clientId = saved.clientId;
+    this.join(saved.code, saved.nickname);
+  }
+
+  forgetGuestRoom(): void {
+    this.#guestStore.clear();
+    this.recoverableGuestRoom.set(null);
   }
 
   /** Cierra la sala y borra su copia local. Solo el anfitrión puede hacerlo. */
@@ -331,16 +406,34 @@ export class GameSessionService implements OnDestroy {
     if (!role || !code) return;
     this.remoteState.set(null);
     this.#helloSent = false;
+    // 0 desarma el watchdog mientras se abre el nuevo Peer; el primer STATE o
+    // PING que llegue vuelve a ponerlo en marcha.
+    this.#lastStateAt = 0;
     this.connection.set('idle');
     this.#sync.connect(code, role, this.clientId);
     if (role === 'player') this.#sendHello();
   }
 
-  leave(options?: { readonly closeRoom?: boolean }): void {
+  leave(
+    options?: {
+      readonly closeRoom?: boolean;
+      /** Cerrar la pestaña no borra la identidad del invitado. */
+      readonly keepGuestSession?: boolean;
+      /** No avisar de salida: queremos conservar el puesto al volver. */
+      readonly silent?: boolean;
+    }
+  ): void {
     this.#stopPresence();
-    if (this.role() === 'player') {
+    if (this.role() === 'player' && !options?.silent) {
       this.#sync.publish('BYE', {});
     }
+    if (this.role() === 'player' && !options?.keepGuestSession) {
+      this.#guestStore.clear();
+    }
+    this.recoverableGuestRoom.set(options?.keepGuestSession ? this.#guestStore.load() : null);
+    this.#lastAnswer = null;
+    this.#replayedAnswerRound = -1;
+    this.#lastStateAt = 0;
     if (options?.closeRoom) this.#sync.closeRoom();
     else this.#sync.disconnect();
     this.role.set(null);
@@ -367,8 +460,21 @@ export class GameSessionService implements OnDestroy {
       const id = this.localPlayerId();
       if (id) this.#engine.recordAnswer(id, optionId);
     } else if (this.role() === 'player') {
+      // Si el canal cae justo al responder, reenviamos la misma respuesta al
+      // reconectar mientras siga viva la ronda (el host es quien mide el tiempo).
+      const roundIndex = this.remoteState()?.roundIndex ?? -1;
+      this.#lastAnswer = { optionId, roundIndex };
       this.#sync.publish('ANSWER', { optionId, answeredAtMs: 0 });
     }
+  }
+
+  #replayAnswer(state: RoomState): void {
+    const answer = this.#lastAnswer;
+    if (!answer || state.phase !== 'FLIP_6S') return;
+    if (state.roundIndex !== answer.roundIndex) return;
+    if (this.#replayedAnswerRound === state.roundIndex) return;
+    this.#replayedAnswerRound = state.roundIndex;
+    this.#sync.publish('ANSWER', { optionId: answer.optionId, answeredAtMs: 0 });
   }
 
   useWildcard(): void {
@@ -410,7 +516,7 @@ export class GameSessionService implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.leave();
+    this.leave({ keepGuestSession: true, silent: true });
     this.#stopPresence();
     this.#subs.forEach((sub) => sub.unsubscribe());
     this.#subs = [];
@@ -428,6 +534,8 @@ export class GameSessionService implements OnDestroy {
     this.role.set('host');
     this.remoteState.set(null);
     this.clockOffset.set(0);
+    this.#guestStore.clear();
+    this.recoverableGuestRoom.set(null);
     const code = this.#engine.createRoom(
       setup.mode,
       setup.includeSelf,
@@ -464,11 +572,20 @@ export class GameSessionService implements OnDestroy {
   #startPresence(): void {
     this.#stopPresence();
     this.#presenceId = setInterval(() => {
+      const now = Date.now();
       if (this.role() === 'player') {
         this.#sendHello(true);
+        // Un DataChannel puede estar "open" sin entregar datos. Si el host
+        // calló más de 8 s, intentamos reconectar en vez de esperar forever.
+        if (
+          this.connection() === 'connected' &&
+          this.#lastStateAt > 0 &&
+          now - this.#lastStateAt > 8000
+        ) {
+          this.retryConnection();
+        }
         return;
       }
-      const now = Date.now();
       const ttl = environment.roomTtlMs > 0 ? environment.roomTtlMs : 30 * 60 * 1000;
       if (
         this.role() === 'host' &&
@@ -483,10 +600,13 @@ export class GameSessionService implements OnDestroy {
         return;
       }
       if (this.role() !== 'host' || this.#sync.presence$) return;
+      // Los celulares estrangulan los timers en segundo plano: 12 s expulsaba
+      // a jugadores que seguían ahí. Ahora solo los marcamos ausentes y un
+      // HELLO posterior los recupera con su marcador intacto.
       for (const [id, seen] of this.#lastSeen) {
-        if (now - seen > 12_000) {
+        if (now - seen > 45_000) {
           this.#lastSeen.delete(id);
-          this.#engine.removePlayer(id);
+          this.#engine.markPlayerDisconnected(id);
         }
       }
     }, 4000);
@@ -519,9 +639,13 @@ export class GameSessionService implements OnDestroy {
   }
 
   #removeUnloadListeners(): void {
-    if (!this.#unloadHandler) return;
-    window.removeEventListener('pagehide', this.#unloadHandler);
-    window.removeEventListener('beforeunload', this.#unloadHandler);
-    this.#unloadHandler = null;
+    if (this.#unloadHandler) {
+      window.removeEventListener('pagehide', this.#unloadHandler);
+      window.removeEventListener('beforeunload', this.#unloadHandler);
+      this.#unloadHandler = null;
+    }
+    window.removeEventListener('pageshow', this.#pageshowHandler);
+    document.removeEventListener('visibilitychange', this.#visibilityHandler);
+    window.removeEventListener('online', this.#onlineHandler);
   }
 }

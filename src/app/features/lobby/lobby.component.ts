@@ -38,7 +38,7 @@ const AUDIO_MODES: readonly AudioModeCard[] = [
   {
     id: 'SPOTIFY_PREMIUM',
     name: 'Spotify Premium',
-    description: 'Control automático si tienes Premium y un dispositivo activo.',
+    description: 'Premium + dispositivo activo. En móvil suele caer al preview de iTunes.',
     icon: '🟢'
   },
   {
@@ -104,6 +104,7 @@ export class LobbyComponent {
   readonly error = signal('');
   readonly joining = signal(false);
   readonly recoverableRoom = this.session.recoverableRoom;
+  readonly recoverableGuestRoom = this.session.recoverableGuestRoom;
   readonly recovering = this.session.recovering;
 
   readonly inSession = computed(() => this.session.inSession());
@@ -119,7 +120,7 @@ export class LobbyComponent {
     () =>
       this.audio.mode() === 'SPOTIFY_PREMIUM' &&
       !this.manual() &&
-      this.spotify.configured &&
+      this.spotify.canConnect &&
       this.spotify.status() !== 'connected'
   );
 
@@ -276,6 +277,17 @@ export class LobbyComponent {
 
   discardRecoverableRoom(): void {
     this.session.discardRecoverableRoom();
+  }
+
+  /** Vuelve a entrar en la sala con el apodo y el clientId anteriores. */
+  resumeGuestRoom(): void {
+    this.preview.unlock();
+    this.session.resumeGuestRoom();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  forgetGuestRoom(): void {
+    this.session.forgetGuestRoom();
   }
 
   /** Cada cambio del lobby se guarda en localStorage; nunca es estado de juego. */

@@ -16,7 +16,7 @@ type CatalogSource = 'idle' | 'remote' | 'local';
  * karaokes, tributos, instrumentales y compilaciones ajenas al pack.
  */
 const BLOCKED_CATALOG =
-  /ethnic\s+psy|world\s+lounge|karaoke|tribute|parodia|instrumental|remix|en vivo|\blive\b/i;
+  /ethnic\s+psy|world\s+lounge|karaoke|tribute|parodia|instrumental|remix|remaster|remasterizado|radio edit|en vivo|en directo|\blive\b/i;
 
 const PALETTES: readonly (readonly [string, string])[] = [
   ['#0ea5e9', '#1e1b4b'],
@@ -35,9 +35,22 @@ function paletteFor(id: string): readonly [string, string] {
   return PALETTES[hash(id) % PALETTES.length]!;
 }
 
+/** El edge puede servir respuestas viejas: deduplicamos también aquí. */
+function songKey(title: string, artist: string): string {
+  const clean = (value: string): string =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  return `${clean(title)}|${clean(artist)}`;
+}
+
 function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilTrack[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
+  const seenSongs = new Set<string>();
   const tracks: VinilTrack[] = [];
 
   for (const item of value) {
@@ -48,7 +61,10 @@ function normalizeRemote(value: unknown, packId: CatalogPackId): readonly VinilT
     const artist = typeof raw['artist'] === 'string' ? raw['artist'].trim() : '';
     if (!id || !title || !artist || seen.has(id)) continue;
     if (BLOCKED_CATALOG.test(`${title} ${artist}`)) continue;
+    const key = songKey(title, artist);
+    if (seenSongs.has(key)) continue;
     seen.add(id);
+    seenSongs.add(key);
 
     const year = typeof raw['year'] === 'number' && raw['year'] > 1900 ? raw['year'] : 2000;
     const genre = typeof raw['genre'] === 'string' ? raw['genre'] : packLabel(packId);

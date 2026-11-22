@@ -12,35 +12,89 @@ export const CATALOG_PACKS = [
     label: 'Pop en Español / Bandas',
     shortLabel: 'Pop',
     icon: '🎸',
-    terms: ['Maná', 'Juanes', 'Chayanne', 'pop en español']
+    terms: [
+      'Maná', 'Juanes', 'Chayanne', 'Shakira', 'Ricky Martin', 'Enrique Iglesias',
+      'Gloria Estefan', 'Luis Fonsi', 'Carlos Vives', 'Juan Luis Guerra',
+      'Marc Anthony', 'Thalía', 'Paulina Rubio', 'pop en español', 'pop latino'
+    ]
   },
   {
     id: 'rancheras',
     label: 'Rancheras y Banda',
     shortLabel: 'Rancheras',
     icon: '🤠',
-    terms: ['Vicente Fernández', 'Los Tigres del Norte', 'Banda MS', 'rancheras']
+    terms: [
+      'Vicente Fernández', 'Los Tigres del Norte', 'Banda MS', 'Alejandro Fernández',
+      'Pepe Aguilar', 'Julión Álvarez', 'Gerardo Ortiz', 'Banda Los Recoditos',
+      'Banda Carnaval', 'Los Ángeles Azules', 'rancheras', 'mariachi', 'corridos',
+      'banda sinaloense', 'regional mexicano'
+    ]
   },
   {
     id: 'baladas',
     label: 'Baladas en Español',
     shortLabel: 'Baladas',
     icon: '💔',
-    terms: ['Luis Miguel', 'Alejandro Sanz', 'José José', 'baladas en español']
+    terms: [
+      'Luis Miguel', 'Alejandro Sanz', 'José José', 'Juan Gabriel', 'Laura Pausini',
+      'Rocío Dúrcal', 'Raphael', 'Camilo Sesto', 'Ricardo Arjona', 'Franco De Vita',
+      'Gloria Estefan', 'baladas en español', 'balada romántica', 'canciones románticas'
+    ]
   },
   {
     id: 'rock',
     label: 'Rock en Español',
     shortLabel: 'Rock',
     icon: '🥁',
-    terms: ['Soda Stereo', 'Jarabe de Palo', 'Molotov', 'rock en español']
+    terms: [
+      'Soda Stereo', 'Jarabe de Palo', 'Molotov', 'Los Enanitos Verdes', 'El Tri',
+      'Caifanes', 'Héroes del Silencio', 'Bunbury', 'Andrés Calamaro', 'Charly García',
+      'Fito Páez', 'Divididos', 'Los Auténticos Decadentes', 'rock en español',
+      'rock alternativo español'
+    ]
+  },
+  {
+    id: 'pop-en',
+    label: 'Pop inglés · 2000 → hoy',
+    shortLabel: 'Pop inglés',
+    icon: '🎧',
+    terms: [
+      'Britney Spears', 'Justin Timberlake', 'Beyoncé', 'Lady Gaga', 'Katy Perry',
+      'Taylor Swift', 'Rihanna', 'Ariana Grande', 'Ed Sheeran', 'Adele',
+      'Bruno Mars', 'Maroon 5', 'Coldplay', 'OneRepublic', 'The Weeknd',
+      'Billie Eilish', 'Dua Lipa', 'Harry Styles', 'Olivia Rodrigo', 'Sia',
+      'Avril Lavigne', 'Shawn Mendes', 'Jennifer Lopez', 'David Guetta',
+      'pop hits 2000s', 'pop hits 2010s', 'pop hits 2020s', 'english pop 2000s'
+    ]
+  },
+  {
+    id: 'latino',
+    label: 'Salsa, merengue y reguetón',
+    shortLabel: 'Latino',
+    icon: '💃',
+    terms: [
+      'Marc Anthony', 'Gilberto Santa Rosa', 'El Gran Combo', 'Sonora Ponceña',
+      'Willie Colón', 'Héctor Lavoe', 'Rubén Blades', 'Celía Cruz',
+      'salsa', 'salsa romántica', 'Juan Luis Guerra', 'Wilfrido Vargas',
+      'Los Hermanos Rosario', 'Olga Tañón', 'merengue', 'Daddy Yankee',
+      'Don Omar', 'Wisin y Yandel', 'Bad Bunny', 'J Balvin', 'Karol G',
+      'Ozuna', 'Rauw Alejandro', 'Farruko', 'Sech', 'reguetón', 'urbano latino'
+    ]
   },
   {
     id: 'mix',
     label: 'Mix Completo',
     shortLabel: 'Mix',
     icon: '✦',
-    terms: ['pop en español', 'rancheras', 'baladas en español', 'rock en español']
+    terms: [
+      'pop en español', 'rancheras', 'baladas en español', 'rock en español',
+      'pop latino', 'regional mexicano', 'merengue', 'salsa', 'cumbia',
+      'Maná', 'Los Tigres del Norte', 'Soda Stereo', 'Shakira', 'Juanes',
+      'Luis Miguel', 'Alejandro Sanz', 'Taylor Swift', 'Ed Sheeran', 'Lady Gaga',
+      'The Weeknd', 'Dua Lipa', 'pop hits 2000s', 'pop hits 2010s',
+      'salsa', 'merengue', 'reguetón', 'Daddy Yankee', 'Juan Luis Guerra',
+      'Bad Bunny', 'Marc Anthony'
+    ]
   }
 ] as const;
 
@@ -55,7 +109,10 @@ export function packLabel(id: string): string {
 }
 
 export function packTerms(id: string): readonly string[] {
-  return CATALOG_PACKS.find((pack) => pack.id === id)?.terms ?? CATALOG_PACKS[4]!.terms;
+  return (
+    CATALOG_PACKS.find((pack) => pack.id === id)?.terms ??
+    CATALOG_PACKS.find((pack) => pack.id === 'mix')!.terms
+  );
 }
 
 function escapeXml(value: string): string {
@@ -111,6 +168,12 @@ function belongsToPack(track: VinilTrack, id: CatalogPackId): boolean {
       return genre.includes('balada');
     case 'rock':
       return genre.includes('rock');
+    case 'pop-en':
+      // El respaldo local solo tiene pistas en español: sin red se usa el
+      // catálogo completo como fallback (el pack inglés necesita /api/catalog).
+      return false;
+    case 'latino':
+      return genre.includes('latino');
     case 'mix':
       return true;
   }

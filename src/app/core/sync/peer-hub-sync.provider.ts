@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { DataConnection, Peer } from 'peerjs';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -23,6 +23,7 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
   readonly status: Observable<ConnectionStatus> = this.#status$.asObservable();
   readonly connectionCount$: Observable<number> = this.#connectionCount$.asObservable();
   readonly messages$: Observable<AnySyncMessage> = this.#messages$.asObservable();
+  readonly lastError = signal('');
 
   #peer: Peer | null = null;
   #connections: DataConnection[] = [];
@@ -37,16 +38,23 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
     this.#role = role;
     this.#retries = 0;
     this.#roomId = `vinil06-${roomCode.toUpperCase()}`;
+    this.#createPeer();
+  }
 
-    // El host toma un ID fijo derivado del código; los jugadores reciben uno
-    // aleatorio del broker y se conectan a ese ID. El TURN solo relaya paquetes
-    // cuando Wi-Fi y datos móviles no pueden hablar directo.
+  /**
+   * PeerJS destruye su objeto `Peer` en la mayoría de los errores de
+   * señalización. Reutilizarlo era el motivo por el que el "reintento
+   * automático" nunca volvía a conectar: aquí siempre se crea uno nuevo.
+   */
+  #createPeer(): void {
     const options = { config: { iceServers: environment.peer.iceServers } };
-    const peer = role === 'host' ? new Peer(this.#roomId, options) : new Peer(options);
+    const peer = this.#role === 'host' ? new Peer(this.#roomId, options) : new Peer(options);
     this.#peer = peer;
 
     peer.on('open', () => {
+      if (this.#peer !== peer) return;
       if (this.#role === 'host') {
+        this.#retries = 0;
         this.#status$.next('connected');
       } else {
         this.#openGuestConnection();
@@ -56,15 +64,27 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
     peer.on('connection', (connection) => this.#register(connection));
 
     peer.on('disconnected', () => {
-      if (!peer.destroyed) peer.reconnect();
+      if (this.#peer === peer && !peer.destroyed) peer.reconnect();
     });
 
-    peer.on('error', () => {
+    peer.on('error', (error) => {
+      if (this.#peer !== peer) return;
+      this.lastError.set(error?.type || 'peer-error');
       this.#status$.next('unavailable');
-      // El host puede no haber abierto la sala todavía (modal, OAuth, etc.).
-      // Seguimos buscándolo mientras la pestaña siga en la partida.
-      if (this.#role === 'player') this.#scheduleRetry();
+      // Vale para el host (ID ocupado, señalización caída) y para el jugador
+      // (el anfitrión aún no abrió la sala, NAT, TURN sin respuesta…).
+      this.#teardown();
+      this.#scheduleRetry();
     });
+  }
+
+  #teardown(): void {
+    if (this.#peer && !this.#peer.destroyed) this.#peer.destroy();
+    this.#peer = null;
+    for (const connection of this.#connections) connection.close();
+    this.#connections = [];
+    this.#openConnections.clear();
+    this.#connectionCount$.next(0);
   }
 
   publish(message: AnySyncMessage): void {
@@ -84,18 +104,20 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
       clearTimeout(this.#retryId);
       this.#retryId = null;
     }
-    for (const connection of this.#connections) connection.close();
-    this.#connections = [];
-    this.#openConnections.clear();
-    this.#connectionCount$.next(0);
-    if (this.#peer && !this.#peer.destroyed) this.#peer.destroy();
-    this.#peer = null;
+    this.#teardown();
+    this.#roomId = '';
+    this.#retries = 0;
+    this.lastError.set('');
     this.#status$.next('idle');
   }
 
   #openGuestConnection(): void {
     const peer = this.#peer;
-    if (!peer || peer.destroyed) return;
+    if (!peer || peer.destroyed || peer.disconnected) {
+      this.#teardown();
+      this.#scheduleRetry();
+      return;
+    }
     this.#register(peer.connect(this.#roomId, { serialization: 'json' }));
   }
 
@@ -127,17 +149,21 @@ export class PeerHubSyncProvider implements RoomSyncProvider {
     if (this.#role !== 'player') return;
 
     this.#status$.next('unavailable');
+    this.#teardown();
     this.#scheduleRetry();
   }
 
-  /** Reintento con backoff suave, sin límite mientras la sala siga abierta. */
+  /**
+   * Backoff suave, sin límite mientras la sala siga abierta. Cada intento
+   * construye un Peer nuevo: reutilizar el anterior no funcionaba.
+   */
   #scheduleRetry(): void {
-    if (this.#retryId !== null) return;
+    if (this.#retryId !== null || !this.#roomId) return;
     const delay = Math.min(1500 * (this.#retries + 1), 5000);
     this.#retries++;
     this.#retryId = setTimeout(() => {
       this.#retryId = null;
-      this.#openGuestConnection();
+      if (this.#roomId) this.#createPeer();
     }, delay);
   }
 }

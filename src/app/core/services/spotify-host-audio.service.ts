@@ -30,6 +30,7 @@ interface DevicesResponse {
     readonly id: string;
     readonly name: string;
     readonly is_active: boolean;
+    readonly is_restricted?: boolean;
   }>;
 }
 
@@ -108,6 +109,22 @@ export class SpotifyHostAudioService {
     return !!this.#clientId();
   }
 
+  /**
+   * PKCE usa `crypto.subtle`, que solo existe en contexto seguro. En local por
+   * IP LAN (http://192.168.x.x) el login se rompía antes de llegar a Spotify;
+   * en móvil simplemente no se ofrece y suena el preview de iTunes.
+   */
+  get canConnect(): boolean {
+    return this.configured && window.isSecureContext;
+  }
+
+  get connectBlockedReason(): string {
+    if (this.configured && !window.isSecureContext) {
+      return 'Spotify requiere HTTPS (en local usa 127.0.0.1). Mientras tanto suena iTunes.';
+    }
+    return this.configured ? '' : 'Spotify no está configurado en esta app.';
+  }
+
   get redirectUri(): string {
     return `${window.location.origin}${environment.spotify.redirectPath}`;
   }
@@ -117,6 +134,10 @@ export class SpotifyHostAudioService {
     const clientId = this.#clientId();
     if (!clientId) {
       this.#set('not-configured', 'Configurá SPOTIFY_CLIENT_ID para activar la reproducción automática.');
+      return;
+    }
+    if (!window.isSecureContext) {
+      this.#set('not-configured', this.connectBlockedReason);
       return;
     }
 
@@ -297,10 +318,9 @@ export class SpotifyHostAudioService {
       return false;
     }
     try {
-      const devices = await this.#api<DevicesResponse>('/v1/me/player/devices');
-      const device = devices.devices?.find((item) => item.is_active) ?? devices.devices?.[0];
+      const device = this.#pickDevice(await this.#api<DevicesResponse>('/v1/me/player/devices'));
       if (!device) {
-        this.#set('no-device', 'Spotify no tiene un dispositivo activo. Sigue el preview o abre Spotify.');
+        this.#set('no-device', 'Spotify no tiene un dispositivo utilizable. Abre la app o una bocina; suena el preview de iTunes.');
         this.playbackFailed.set(true);
         return false;
       }
@@ -411,16 +431,21 @@ export class SpotifyHostAudioService {
     }
     this.isPremium.set(true);
 
-    const devices = await this.#api<DevicesResponse>('/v1/me/player/devices');
-    const device = devices.devices?.find((item) => item.is_active) ?? devices.devices?.[0];
+    const device = this.#pickDevice(await this.#api<DevicesResponse>('/v1/me/player/devices'));
     if (!device) {
-      this.#set('no-device', 'No hay ningún dispositivo de Spotify activo. Abrí Spotify en tu celular o bocina; mientras tanto el tablero sigue en manual.');
+      this.#set('no-device', 'Spotify no tiene un dispositivo activo en este navegador. En móvil abre la app o usa una bocina; mientras tanto suena el preview de iTunes.');
       return;
     }
 
     this.#deviceId = device.id;
     this.deviceName.set(device.name);
     this.#set('connected', '');
+  }
+
+  /** Los dispositivos restringidos aceptan OAuth pero rechazan el play. */
+  #pickDevice(devices: DevicesResponse): { readonly id: string; readonly name: string } | null {
+    const usable = (devices.devices ?? []).filter((device) => !device.is_restricted);
+    return usable.find((device) => device.is_active) ?? usable[0] ?? null;
   }
 
   async #findTrackUri(track: PublicOption): Promise<string> {

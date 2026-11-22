@@ -10,6 +10,36 @@ export function shuffleArray<T>(source: readonly T[]): T[] {
   return copy;
 }
 
+/**
+ * Fisher-Yates determinista por semilla (FNV-1a + xorshift). Dos salas con
+ * códigos distintos ven subconjuntos distintos del MISMO pool cacheado.
+ */
+export function shuffleWithSeed<T>(source: readonly T[], seed: string): T[] {
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  let state = hash >>> 0 || 0x9e3779b9;
+  const next = (): number => {
+    state ^= state << 13;
+    state >>>= 0;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    state >>>= 0;
+    return state / 0x100000000;
+  };
+
+  const copy = [...source];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    const tmp = copy[i]!;
+    copy[i] = copy[j]!;
+    copy[j] = tmp;
+  }
+  return copy;
+}
+
 export function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }

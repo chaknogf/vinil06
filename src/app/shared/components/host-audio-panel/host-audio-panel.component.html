@@ -47,13 +47,17 @@
       type="button"
       class="yt-btn"
       [class.yt-btn-active]="audio.mode() === 'SPOTIFY_PREMIUM'"
-      (click)="audio.setMode('SPOTIFY_PREMIUM')"
+      (click)="selectSpotify()"
     >
       Spotify Premium
     </button>
   </div>
 
-  @if (audio.spotifyDisconnected()) {
+  @if (spotifyBlocked()) {
+    <p class="retry-hint">{{ spotifyBlockedReason() }}</p>
+  }
+
+  @if (audio.spotifyDisconnected() && !spotifyBlocked()) {
     <div class="yt-actions connect-row">
       <button type="button" class="yt-btn btn-connect" (click)="connectSpotify()">Conectar Spotify</button>
     </div>

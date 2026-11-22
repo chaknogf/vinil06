@@ -13,11 +13,12 @@ import {
   RoundPack,
   RoundResultEntry,
   RoomState,
+  Track,
   RouletteDraw,
   TOTAL_ROUNDS,
   VinilTrack
 } from '../models/game.models';
-import { createRoomCode, pickOne, randomInt, shuffleArray } from '../utils/random';
+import { createRoomCode, pickOne, randomInt, shuffleArray, shuffleWithSeed } from '../utils/random';
 import { AudioService } from './audio.service';
 import { HostAudioControllerService } from './host-audio-controller.service';
 import { HapticsService } from './haptics.service';
@@ -129,6 +130,9 @@ export class GameEngineService {
   });
 
   #pack: RoundPack | null = null;
+  /** Próxima ronda ya sorteada: se elige al cerrar la anterior y se precarga. */
+  #pendingPack: RoundPack | null = null;
+  #pendingKaraokeTrack: VinilTrack | null = null;
   /** Pack elegido en el lobby; solo entran pistas con preview reproducible. */
   #packCatalog: readonly VinilTrack[] = AUDIBLE_CATALOG;
   /** Toda pista mostrada o cantada queda marcada: nunca se repite en la partida. */
@@ -161,6 +165,9 @@ export class GameEngineService {
     this.#hostAudio.reset();
     if (tracks?.length) this.setCatalog(tracks);
     const code = createRoomCode();
+    // Rotación por sala: el endpoint sigue cacheado por pack (una sola entry),
+    // pero cada código baraja el pool completo y arranca en un punto distinto.
+    this.#packCatalog = shuffleWithSeed(this.#packCatalog, code);
     this.roomCode.set(code);
     this.mode.set(mode);
     this.manual.set(manual);
@@ -175,16 +182,37 @@ export class GameEngineService {
     ];
     this.players.set(players);
     this.#startHeartbeat();
+    // Ronda 1: elegimos y precargamos la pista ANTES del primer giro.
+    this.#prepareNextRound(0);
     return code;
   }
 
   addPlayer(clientId: string, nickname: string): void {
-    if (this.phase() === 'PODIUM' || this.players().some((p) => p.id === clientId)) return;
+    if (this.phase() === 'PODIUM') return;
+    // Un invitado que vuelve con el MISMO clientId conserva su nombre y puntos.
+    if (this.players().some((p) => p.id === clientId)) {
+      this.reconnectPlayer(clientId);
+      return;
+    }
     this.players.update((list) => [
       ...list,
       this.#makePlayer(clientId, this.#uniqueName(nickname), list.length, false, false)
     ]);
     this.#audio.tone(784, 0.08, 'sine', 0.05);
+  }
+
+  /** Reaparece en el marcador sin perder puntos ni comodines. */
+  reconnectPlayer(clientId: string): void {
+    this.players.update((list) =>
+      list.map((p) => (p.id === clientId ? { ...p, connected: true } : p))
+    );
+  }
+
+  /** Se fue a segundo plano: deja de contar como presente, pero sigue en el ranking. */
+  markPlayerDisconnected(clientId: string): void {
+    this.players.update((list) =>
+      list.map((p) => (p.id === clientId ? { ...p, connected: false } : p))
+    );
   }
 
   removePlayer(clientId: string): void {
@@ -203,25 +231,41 @@ export class GameEngineService {
     this.results.set([]);
     this.options.set([]);
     this.karaoke.set(null);
-    this.hostTrack.set(null);
     this.audioUrl.set('');
     this.#preview.stop();
     this.players.update((list) => list.map((p) => ({ ...p, answered: false, lastDelta: 0 })));
 
-    const pack = this.#nextPack();
     const karaokeRound = this.#isKaraokeRound();
-    this.draw.set({
-      genre: pack.genre,
-      decade: pack.decade,
-      label: pack.label,
-      ...(karaokeRound ? this.#karaokePreview() : {})
-    });
+    let trackToPlay: Track | null = null;
+    if (karaokeRound) {
+      const karaokeTrack = this.#pendingKaraokeTrack ?? this.#takeKaraokeTrack();
+      trackToPlay = karaokeTrack;
+      this.#pendingKaraokeTrack = null;
+      this.#pendingPack = null;
+      this.#previewTrack = karaokeTrack;
+      const singer = pickOne(this.players());
+      this.draw.set({
+        genre: trackToPlay.genre,
+        decade: trackToPlay.decade,
+        label: `${trackToPlay.genre} · ${trackToPlay.decade}`,
+        song: trackToPlay.title,
+        artist: trackToPlay.artist,
+        ...(singer ? { singer: singer.name } : {})
+      });
+    } else {
+      const pack = this.#pendingPack ?? this.#nextPack();
+      this.#pendingPack = null;
+      this.#pendingKaraokeTrack = null;
+      this.#pack = pack;
+      trackToPlay = pack.tracks[0] ?? null;
+      this.draw.set({ genre: pack.genre, decade: pack.decade, label: pack.label });
+    }
 
-    // El host necesita saber qué pista poner antes de que corran los 8s.
-    // Este signal NO se publica a los jugadores (no forma parte de snapshot).
-    const trackToPlay = karaokeRound ? this.#previewTrack : pack.tracks[0];
+    // `hostTrack` NO viaja en el snapshot: solo lo ve el anfitrión. Ya se mostró
+    // al cerrar la ronda anterior; aquí se confirma y se asegura el buffer.
     this.hostTrack.set(trackToPlay ? trackToOption(trackToPlay) : null);
     this.#hostAudio.prepareTrack(trackToPlay);
+    this.#preview.preload(trackToPlay?.previewUrl ?? '');
 
     this.#enterPhase('SPINNING');
     this.#audio.tone(392, 0.1, 'triangle', 0.06);
@@ -284,6 +328,7 @@ export class GameEngineService {
     });
     this.hostTrack.set(track);
     this.#hostAudio.prepareTrack(track);
+    this.#preview.preload(sourceTrack.previewUrl ?? '');
     this.#playTrack(track, sourceTrack.previewUrl ?? '', 'Spotify falló: suena el preview del comodín.');
     this.#audio.flipChime();
     this.#haptics.flip();
@@ -314,6 +359,10 @@ export class GameEngineService {
     ]);
     this.#enterPhase('ROUND_RESULT');
     if (points) this.#audio.tone(880, 0.16, 'sine', 0.1);
+
+    // El karaoke no pasa por #finishRound(): preparar aquí la ronda siguiente
+    // evita que se vuelva a gastar un pack en `spin()` sin buffer cargado.
+    if (this.roundIndex() < TOTAL_ROUNDS - 1) this.#prepareNextRound(this.roundIndex() + 1);
   }
 
   /** Atajos del tablero manual. */
@@ -339,6 +388,9 @@ export class GameEngineService {
     this.#usedTrackIds.clear();
     this.#usageOrder = [];
     this.#previewTrack = null;
+    this.#pendingPack = null;
+    this.#pendingKaraokeTrack = null;
+    this.#preview.cancelPreload();
     this.#answers.clear();
     this.#pack = null;
     this.roomCode.set('');
@@ -408,9 +460,15 @@ export class GameEngineService {
 
     const remaining = (duration: number) => Math.max(250, duration - elapsed);
     switch (state.phase) {
-      case 'SPINNING':
+      case 'SPINNING': {
+        const next =
+          this.#pack?.tracks[0] ??
+          this.#packCatalog.find((track) => track.id === this.hostTrack()?.id) ??
+          null;
+        if (next) this.#preview.preload(next.previewUrl ?? '');
         this.#schedule(() => this.#finishSpin(), remaining(environment.timings.spinMs));
         break;
+      }
       case 'LISTEN_8S':
         this.#schedule(() => this.#beginFlip(), remaining(state.listenDurationMs));
         break;
@@ -513,8 +571,7 @@ export class GameEngineService {
     }
   }
 
-  #isKaraokeRound(): boolean {
-    const index = this.roundIndex();
+  #isKaraokeRound(index = this.roundIndex()): boolean {
     if (this.mode() === 'KARAOKE') return true;
     return this.mode() === 'MIXED' && (index === 3 || index === 7 || index === 11);
   }
@@ -597,15 +654,7 @@ export class GameEngineService {
       bpm: correctTrack.bpm || 120,
       tracks: [correctTrack, ...decoys]
     };
-    this.#pack = chosen;
     return chosen;
-  }
-
-  #karaokePreview(): Partial<{ song: string; artist: string; singer: string }> {
-    const track = this.#takeKaraokeTrack();
-    this.#previewTrack = track;
-    const singer = pickOne(this.players());
-    return { song: track.title, artist: track.artist, singer: singer?.name };
   }
 
   /** Toma una pista fresca y la marca como usada (ruleta y turno coinciden). */
@@ -616,13 +665,33 @@ export class GameEngineService {
     return track;
   }
 
+  /**
+   * Sortea la próxima pista al cerrar la ronda anterior. El host ya puede ver
+   * la carta en su panel y el preview se descarga mientras tanto; el sorteo
+   * sigue siendo del host y `hostTrack` nunca entra en el snapshot.
+   */
+  #prepareNextRound(roundIndex: number): void {
+    if (this.#isKaraokeRound(roundIndex)) {
+      this.#pendingKaraokeTrack ??= this.#takeKaraokeTrack();
+    } else {
+      this.#pendingPack ??= this.#nextPack();
+    }
+    const next = this.#pendingKaraokeTrack ?? this.#pendingPack?.tracks[0] ?? null;
+    if (next) {
+      this.hostTrack.set(trackToOption(next));
+      this.#hostAudio.prepareTrack(next);
+      this.#preview.preload(next.previewUrl ?? '');
+    }
+  }
+
   #finishSpin(): void {
     if (this.phase() !== 'SPINNING') return;
     if (this.#isKaraokeRound()) {
       this.#startKaraokeTurn();
       return;
     }
-    const pack = this.#pack ?? this.#nextPack();
+    if (!this.#pack) this.#pack = this.#nextPack();
+    const pack = this.#pack;
     this.options.set(pack.tracks.map(trackToOption));
     this.#enterPhase('LISTEN_8S');
     const url = pack.tracks[0]?.previewUrl ?? '';
@@ -741,6 +810,10 @@ export class GameEngineService {
     } else {
       this.#audio.tone(220, 0.22, 'sawtooth', 0.05);
     }
+
+    // La pista de la siguiente ronda se decide AQUÍ, nunca antes de calcular
+    // este resultado (#pack todavía es la ronda que acaba de cerrar).
+    if (this.roundIndex() < TOTAL_ROUNDS - 1) this.#prepareNextRound(this.roundIndex() + 1);
   }
 
   #uniqueName(nickname: string): string {

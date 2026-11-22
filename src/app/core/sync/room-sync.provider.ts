@@ -1,4 +1,4 @@
-import { InjectionToken } from '@angular/core';
+import { InjectionToken, Signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ConnectionStatus, Role, RoomState } from '../models/game.models';
 
@@ -10,6 +10,8 @@ export interface SyncPayloads {
   WILDCARD: Record<string, never>;
   KARAOKE_DONE: { wildcardUsed: boolean };
   BYE: Record<string, never>;
+  /** El jugador pide el snapshot tras reconectar: el host responde con STATE. */
+  STATE_REQUEST: Record<string, never>;
   /** Latido 1 Hz: solo la hora del host, para no reenviar el snapshot completo. */
   PING: { hostNow: number };
 }
@@ -39,6 +41,8 @@ export interface RoomSyncProvider {
   readonly messages$: Observable<AnySyncMessage>;
   /** Proveedores con presencia real (Firebase) informan quién sigue conectado. */
   readonly presence$?: Observable<readonly string[]>;
+  /** Motivo del último fallo del transporte, cuando el proveedor lo conoce. */
+  readonly lastError?: Signal<string>;
   connect(roomCode: string, role: Role, clientId: string): void;
   publish(message: AnySyncMessage): void;
   disconnect(): void;
