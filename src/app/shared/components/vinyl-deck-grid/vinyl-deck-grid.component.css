@@ -326,6 +326,38 @@
   }
 }
 
+/* En móviles bajos (360×640) dos filas de 212px se salían del pliegue y la
+   segunda carta no se podía tocar sin hacer scroll durante los 6s de respuesta.
+   Va al final para ganar también a los media/container queries anteriores. */
+@media (max-height: 720px) and (max-width: 479px), (max-height: 560px) {
+  .vinyl-card {
+    height: 138px;
+  }
+
+  .cover-wrap {
+    height: 66px;
+  }
+
+  .turntable-stage {
+    width: 84px;
+    height: 60px;
+  }
+
+  .platter {
+    width: 60px;
+    height: 60px;
+  }
+
+  .vinyl-disc {
+    width: 48px;
+    height: 48px;
+  }
+
+  .track-title {
+    font-size: 0.78rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vinyl-disc.is-spinning,
   .back-caption.caption-live {

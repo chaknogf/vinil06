@@ -35,7 +35,7 @@
         <span class="phase-chip">{{ phaseLabel() }}</span>
         <span class="round tabular">Ronda {{ state().roundIndex + 1 }} / {{ state().totalRounds }}</span>
         @if (session.connection() === 'unavailable') {
-          <span class="connection-chip" role="status">Señal perdida · reintentando…</span>
+          <span class="connection-chip" aria-hidden="true" title="Señal perdida">⚠︎</span>
         }
       </div>
       <div class="row">
@@ -146,7 +146,14 @@
       @if (phase() === 'ROUND_RESULT') {
         <section class="glass-panel result-panel float-in">
           <p class="result-title">Ronda cerrada</p>
-          <p class="result-copy">Puntos asignados por orden de llegada: +2 al primero, +1 al resto de aciertos.</p>
+          @if (resultSummary().correct; as correct) {
+            <p class="result-song">Correcta: <strong>{{ correct }}</strong> · {{ resultSummary().artist }}</p>
+          }
+          @if (resultSummary().winners.length) {
+            <p class="result-copy">Puntos: {{ resultSummary().winners.join(' · ') }}</p>
+          } @else {
+            <p class="result-copy">Nadie acertó esta ronda.</p>
+          }
         </section>
       }
 
@@ -161,9 +168,7 @@
           [players]="state().players"
           title="¡Partida final!"
           subtitle="Marcador final tras 12 rondas del mismo tablero."
-          actionLabel="Jugar otra partida"
-          [showAction]="true"
-          (newGame)="mainAction()"
+          [showAction]="false"
         />
       }
 

@@ -9,6 +9,7 @@ import {
 import { ANSWER_DURATION_MS, GamePhase, RoomState } from '../../core/models/game.models';
 import { AudioService } from '../../core/services/audio.service';
 import { GameSessionService } from '../../core/services/game-session.service';
+import { HostAudioControllerService } from '../../core/services/host-audio-controller.service';
 import { LOCAL_PLAYER_ID } from '../../core/services/game-engine.service';
 import { HostAudioPanelComponent } from '../../shared/components/host-audio-panel/host-audio-panel.component';
 import { KaraokeRouletteCardComponent } from '../../shared/components/karaoke-roulette-card/karaoke-roulette-card.component';
@@ -37,6 +38,7 @@ export class HostBoardComponent {
   readonly state = input.required<RoomState>();
   readonly session = inject(GameSessionService);
   readonly audio = inject(AudioService);
+  readonly hostAudio = inject(HostAudioControllerService);
 
   readonly view = signal<'control' | 'cards'>('control');
   readonly copied = signal(false);
@@ -92,8 +94,13 @@ export class HostBoardComponent {
 
   phaseLabel(): string {
     const labels: Record<string, string> = {
-      LOBBY: 'Sala abierta',
-      SPINNING: 'Sorteando',
+      LOBBY:
+        this.session.connection() === 'connected' ? 'Sala abierta' : 'Preparando sala…',
+      SPINNING: this.state().audioWaiting
+        ? this.hostAudio.mode() === 'SPOTIFY_PREMIUM'
+          ? 'Esperando a Spotify…'
+          : 'Preparando audio…'
+        : 'Sorteando',
       LISTEN_8S: `Fase 1 · Escucha (${this.listenLabel()})`,
       FLIP_6S: 'Fase 2 · Responde (6s)',
       ROUND_RESULT: 'Resultado',
@@ -121,12 +128,30 @@ export class HostBoardComponent {
       : 'RESPONDE AHORA · 6s'
   );
 
+  /** La pista correcta y quién puntúa, también para lectores de pantalla. */
+  readonly resultSummary = computed(() => {
+    const state = this.state();
+    const correct = state.options.find((option) => option.id === state.correctId);
+    const winners = state.results
+      .filter((result) => result.points > 0)
+      .map((result) => {
+        const name = state.players.find((player) => player.id === result.playerId)?.name ?? 'Alguien';
+        return `${name} +${result.points}`;
+      });
+    return { correct: correct?.title ?? '', artist: correct?.artist ?? '', winners };
+  });
+
   /** Anuncio único por cambio de fase (los timers siguen con aria-live="off"). */
   readonly phaseAnnouncement = computed(() => {
     switch (this.phase() as GamePhase) {
       case 'LISTEN_8S': return `Escucha activa · ${this.listenLabel()}`;
       case 'FLIP_6S': return 'Responde ahora · 6 segundos';
-      case 'ROUND_RESULT': return 'Ronda cerrada';
+      case 'ROUND_RESULT': {
+        const summary = this.resultSummary();
+        return `Ronda cerrada. Correcta: ${summary.correct || 'sin datos'}. ${
+          summary.winners.length ? `Puntos: ${summary.winners.join(', ')}` : 'Nadie acertó'
+        }`;
+      }
       case 'KARAOKE_TURN': return 'Turno de karaoke en curso';
       case 'PODIUM': return 'Podio final';
       default: return this.phaseLabel();

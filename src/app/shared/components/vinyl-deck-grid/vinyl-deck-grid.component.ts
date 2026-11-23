@@ -6,7 +6,8 @@ export type CardFeedbackStatus =
   | 'CORRECT_FIRST'
   | 'CORRECT_OTHER'
   | 'WRONG'
-  | 'TIMEOUT';
+  | 'TIMEOUT'
+  | 'MISSING';
 
 /**
  * Cuatro cartas de naipe con tocadiscos en el dorso y giro 3D al revelar.

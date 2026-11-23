@@ -1,5 +1,13 @@
 @if (showRemote()) {
-  <img class="cover-img" [src]="remoteSrc()" alt="" aria-hidden="true" (error)="onImageError()" />
+  <img
+    class="cover-img"
+    [src]="remoteSrc()"
+    alt=""
+    aria-hidden="true"
+    loading="lazy"
+    decoding="async"
+    (error)="onImageError()"
+  />
 } @else {
   <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
     <defs>

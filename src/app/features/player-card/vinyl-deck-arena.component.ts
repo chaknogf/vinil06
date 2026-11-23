@@ -23,7 +23,7 @@ import { KaraokeRouletteCardComponent } from '../../shared/components/karaoke-ro
 import { RoundTimerBarComponent, TimerVariant } from '../../shared/components/round-timer-bar/round-timer-bar.component';
 import { VinylDeckGridComponent } from '../../shared/components/vinyl-deck-grid/vinyl-deck-grid.component';
 
-type FeedbackStatus = 'IDLE' | 'CORRECT_FIRST' | 'CORRECT_OTHER' | 'WRONG' | 'TIMEOUT';
+type FeedbackStatus = 'IDLE' | 'CORRECT_FIRST' | 'CORRECT_OTHER' | 'WRONG' | 'TIMEOUT' | 'MISSING';
 
 interface RoundFeedback {
   readonly status: FeedbackStatus;
@@ -73,6 +73,16 @@ interface RoundFeedback {
               }
             </button>
             <button type="button" class="privacy-mini" (click)="openPrivacy()">Sesión efímera</button>
+            @if (isGuest()) {
+              <button
+                type="button"
+                class="privacy-mini exit-mini"
+                [attr.aria-expanded]="exitConfirm()"
+                (click)="exitConfirm.set(!exitConfirm())"
+              >
+                Salir
+              </button>
+            }
             <div class="score-pill">
               <span>PTS</span>
               <strong class="tabular">{{ localPlayerScore() }}</strong>
@@ -82,6 +92,15 @@ interface RoundFeedback {
             }
           </div>
         </header>
+
+        @if (isGuest() && exitConfirm()) {
+          <div class="exit-confirm" role="group" aria-label="Confirmar salida">
+            <button type="button" class="privacy-mini" (click)="exitConfirm.set(false)">Cancelar</button>
+            <button type="button" class="privacy-mini exit-mini" (click)="session.leave()">
+              Salir de la sala
+            </button>
+          </div>
+        }
 
         <!-- Cronómetro configurable 8–15s (escucha) / 6.0s (respuesta) / karaoke -->
         @if (showTimer()) {
@@ -98,14 +117,26 @@ interface RoundFeedback {
         @if (phase() === 'SPINNING') {
           <div class="status-banner is-spinning">
             <span class="mini-disc" aria-hidden="true"></span>
-            <p>Girando ruleta de género y año…</p>
+            <p>
+              @if (state.audioWaiting) {
+                Preparando audio… la ronda empieza cuando suene la pista.
+              } @else {
+                Girando ruleta de género y año…
+              }
+            </p>
           </div>
         }
 
         @if (phase() === 'LOBBY') {
           <div class="status-banner is-lobby">
             <span class="mini-disc" aria-hidden="true"></span>
-            <p>Sala abierta · esperando a que el anfitrión gire la ruleta</p>
+            <p>
+              @if (session.connection() === 'connected') {
+                Sala abierta · esperando a que el anfitrión gire la ruleta
+              } @else {
+                Conectando con la sala… tu puesto se conserva
+              }
+            </p>
           </div>
         }
 
@@ -120,6 +151,10 @@ interface RoundFeedback {
             } @else {
               <strong>Turno de {{ karaokeTurn.singerName }} · esperando la siguiente ronda</strong>
             }
+            <p class="karaoke-result-song">
+              {{ karaokeTurn.track.title }} · {{ karaokeTurn.track.artist }}<br />
+              Reto: {{ karaokeTurn.challenge }}
+            </p>
           </div>
         } @else if (phase() === 'ROUND_RESULT') {
           <div
@@ -135,6 +170,9 @@ interface RoundFeedback {
               }
               @case ('WRONG') {
                 <strong>Esa no era · +0 puntos</strong>
+              }
+              @case ('MISSING') {
+                <strong>Tu respuesta no llegó al host · +0 puntos</strong>
               }
               @case ('TIMEOUT') {
                 <strong>Se agotaron los 6 segundos · +0 puntos</strong>
@@ -155,6 +193,7 @@ interface RoundFeedback {
             [startedAt]="state.phaseStartedAt"
             [clockOffset]="session.clockOffset()"
             [canInteract]="isSinger()"
+            [isMyTurn]="isSinger()"
             (wildcard)="session.useWildcard()"
             (done)="session.karaokeDone(true)"
           />
@@ -299,6 +338,25 @@ interface RoundFeedback {
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
+    .privacy-mini.exit-mini {
+      color: #fda4af;
+      border-color: rgba(251, 113, 133, 0.35);
+    }
+
+    .exit-confirm {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 0 2px;
+    }
+
+    .karaoke-result-song {
+      margin: 4px 0 0;
+      font-size: 0.75rem;
+      line-height: 1.35;
+      color: var(--text-muted);
+    }
+
     .score-pill {
       display: inline-flex;
       align-items: baseline;
@@ -404,6 +462,7 @@ export class VinylDeckArenaComponent {
   /** Opciones ya enriquecidas y barajadas en este dispositivo. */
   readonly options = signal<ShuffledOption[]>([]);
   readonly selectedTrackId = signal<string | null>(null);
+  readonly exitConfirm = signal(false);
 
   readonly cardsLocked = computed(() => this.phase() === 'LISTEN_8S');
   readonly canAnswer = computed(
@@ -437,6 +496,9 @@ export class VinylDeckArenaComponent {
     () => this.roomState()?.karaoke?.singerId === this.session.localPlayerId()
   );
 
+  /** Esta arena también se incrusta en el host: solo el invitado puede salir. */
+  readonly isGuest = computed(() => this.session.role() === 'player');
+
   readonly timerVariant = computed<TimerVariant>(() => {
     const currentPhase = this.phase();
     if (currentPhase === 'LISTEN_8S') return 'listen';
@@ -469,18 +531,51 @@ export class VinylDeckArenaComponent {
     switch (this.phase()) {
       case 'LISTEN_8S': return 'Escucha activa · cartas bloqueadas';
       case 'FLIP_6S': return 'Responde ahora · 6 segundos';
-      case 'ROUND_RESULT': return 'Ronda cerrada';
-      case 'KARAOKE_TURN': return 'Turno de karaoke';
+      case 'ROUND_RESULT': {
+        const karaoke = this.roomState()?.karaoke;
+        if (karaoke) {
+          return `Karaoke cerrado. ${karaoke.track.title}. Reto: ${karaoke.challenge}. ${
+            this.feedback().pointsEarned
+              ? `Ganaste ${this.feedback().pointsEarned} puntos`
+              : 'Sin puntos'
+          }`;
+        }
+        if (!this.answerDelivered() && this.selectedTrackId()) {
+          return 'Tu respuesta no llegó al host · ronda cerrada';
+        }
+        const correct = this.options().find((option) => option.id === this.roomState()?.correctId);
+        const points = this.feedback().pointsEarned;
+        return `Ronda cerrada. ${correct ? `Correcta: ${correct.title}. ` : ''}${points ? `Ganaste ${points} puntos` : 'Sin puntos'}`;
+      }
+      case 'KARAOKE_TURN': {
+        const turn = this.roomState()?.karaoke;
+        return turn?.singerId === this.session.localPlayerId()
+          ? `Tu turno de karaoke: canta ${Math.round(turn.durationMs / 1000)} segundos`
+          : `Turno de ${turn?.singerName ?? 'otro jugador'}`;
+      }
       case 'PODIUM': return 'Podio final';
       default: return 'Sala abierta';
     }
   });
 
-  /** Confirmación inmediata del toque: el envío no tiene ACK y 6s son pocos. */
+  /**
+   * ACK sin mensajes nuevos: `Player.answered` ya viaja en el snapshot del host
+   * y se resetea por ronda. El jugador ve el paso de «Enviando…» a «Registrado»
+   * y, si la ronda cerró sin confirmación, un aviso honesto en vez de un falso
+   * «Esa no era».
+   */
+  readonly answerDelivered = computed(() => {
+    const state = this.roomState();
+    if (!state) return false;
+    return state.players.find((player) => player.id === this.session.localPlayerId())?.answered === true;
+  });
+
   readonly selectionFeedback = computed(() => {
     if (this.selectedTrackId() === null) return '';
-    if (this.session.connection() !== 'connected') return 'Sin conexión · reintentar';
-    return '✓ Respondido · esperando confirmación';
+    if (this.answerDelivered()) return '✓ Registrado por el host';
+    if (this.phase() === 'ROUND_RESULT') return 'No entregado · tu respuesta no llegó';
+    if (this.session.connection() !== 'connected') return 'Sin conexión · reintentaremos';
+    return 'Enviando…';
   });
 
   readonly feedback = computed<RoundFeedback>(() => {
@@ -492,7 +587,8 @@ export class VinylDeckArenaComponent {
     const pointsEarned = result?.points ?? 0;
 
     let status: FeedbackStatus = 'TIMEOUT';
-    if (pointsEarned === 2) status = 'CORRECT_FIRST';
+    if (!this.answerDelivered() && this.selectedTrackId() !== null) status = 'MISSING';
+    else if (pointsEarned === 2) status = 'CORRECT_FIRST';
     else if (pointsEarned === 1) status = 'CORRECT_OTHER';
     else if (result?.correct === false && result.timeMs !== null) status = 'WRONG';
     else if (result?.correct === false && this.selectedTrackId() !== null) status = 'WRONG';

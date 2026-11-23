@@ -1,19 +1,19 @@
 <div
   class="app-shell"
-  [class.has-top-banner]="!!session.notice() || (session.connection() === 'unavailable' && session.inSession())"
+  [class.has-top-banner]="!!session.notice() || (session.connection() === 'unavailable' && session.inSession() && session.viewState() !== null && !session.roomExpired())"
   [attr.inert]="session.privacyVisible() ? '' : null"
 >
   @if (session.notice()) {
     <div
       class="notice-banner"
-      [class.is-stacked]="session.connection() === 'unavailable' && session.inSession()"
+      [class.is-stacked]="session.connection() === 'unavailable' && session.inSession() && session.viewState() !== null && !session.roomExpired()"
       role="status"
     >
       <span>{{ session.notice() }}</span>
       <button type="button" class="notice-dismiss" aria-label="Cerrar aviso" (click)="session.dismissNotice()">×</button>
     </div>
   }
-  @if (session.connection() === 'unavailable' && session.inSession()) {
+  @if (session.connection() === 'unavailable' && session.inSession() && session.viewState() !== null && !session.roomExpired()) {
     <div class="connection-banner" role="status">
       @if (session.role() === 'host') {
         No pudimos publicar tu sala · los invitados no podrán entrar.
@@ -27,11 +27,18 @@
     </div>
   }
   <app-install-prompt />
+  @if (updateAvailable()) {
+    <div class="update-banner" role="status">
+      <span>Hay una versión nueva de Vinil06.</span>
+      <button type="button" (click)="refreshApp()">Actualizar</button>
+    </div>
+  }
   <router-outlet />
 </div>
 
 <app-ephemeral-privacy-modal
   [visible]="session.privacyVisible()"
+  [isHost]="session.privacyForHost()"
   [error]="spotifyError()"
   (accept)="onAccept()"
   (manual)="onManual()"

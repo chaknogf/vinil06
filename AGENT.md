@@ -150,6 +150,25 @@ AGENT.md                       # este archivo
 - **iTunes es la fuente base**: cada `VinilTrack` trae su `previewUrl` verificado y el motor
   reproduce ese mismo preview en el altavoz del host durante `LISTEN_8S` / `KARAOKE_TURN`.
   No hay login, clave ni red extra. Carta y audio coinciden por construcción.
+- **Música y cronómetro arrancan juntos**: la sala permanece en `SPINNING` con
+  `audioWaiting: true` hasta que `PreviewAudioService.playWhenReady()` confirma el evento
+  `playing` —buffer suficiente— o Spotify acepta el play. No hay timeout: la cuenta atrás
+  (y su `phaseStartedAt`, que usan todos los clientes) empieza en ese instante exacto.
+  `Reintentar audio` pide la pista de nuevo con cache-buster sin tocar la sala, la ronda ni
+  los jugadores. El ACK de respuestas se deriva de `Player.answered` en el snapshot y se
+  reenvía el mismo mensaje `ANSWER` mientras no llegue: sin nuevos contratos de sincronía.
+- **Estados honestos y salidas**: `audioWaiting` identifica si esperamos a iTunes o a Spotify;
+  los errores de Premium usan un único texto accionable (`spotifyMessage`) y siempre recuerdan
+  que suena el preview. Conectar Spotify desde una sala viva se confirma dentro del panel
+  (nunca `window.confirm`) y el host recupera la sala desde el lobby al volver.
+- **Cierre de sesión**: el invitado tiene «Salir» en su HUD y «Volver al lobby» en el podio.
+  Avisamos 60 s antes del TTL de 30 min; al vencer, el invitado ve «La sala ha caducado».
+  «Reintentar ahora» conserva el último snapshot en pantalla. Borrar copias guardadas y cerrar
+  una ronda con respuestas pendientes se confirma in-app.
+- **Accesibilidad/copy**: modal con foco atrapado y copy distinto para host e invitado; timer
+  con `aria-label`/`aria-valuetext` y anuncio de los 2 s finales; cartas compactas en 360×640
+  con portadas `eager` en respuesta y `lazy` en el resto; banner de conexión único dentro de
+  sesión; aviso no bloqueante de nueva versión PWA (`SwUpdate` opcional).
 - `HostAudioMode = 'ITUNES' | 'SPOTIFY_PREMIUM'`. Spotify es opcional: si falla o no hay
   dispositivo activo, `GameEngineService.#playTrack()` cae al preview de iTunes y avisa al host.
 - **Los invitados no reproducen audio**: `PlayerCardComponent` solo muestra un aviso de

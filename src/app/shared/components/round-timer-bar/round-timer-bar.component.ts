@@ -39,6 +39,8 @@ export class RoundTimerBarComponent {
 
   readonly remainingMs = signal(0);
   readonly progress = signal(0);
+  /** Solo los 2s finales, una vez por segundo: sin chatter por frame. */
+  readonly urgentAnnouncement = signal('');
 
   readonly seconds = computed(() => (this.remainingMs() / 1000).toFixed(1));
   readonly percent = computed(() => Math.round(this.progress() * 100));
@@ -62,6 +64,7 @@ export class RoundTimerBarComponent {
   #restart(started: number, duration: number, offset: number, active: boolean): void {
     cancelAnimationFrame(this.#raf);
     this.#lastUrgentSecond = -1;
+    this.urgentAnnouncement.set('');
 
     if (!started || !active || duration <= 0) {
       this.remainingMs.set(0);
@@ -84,6 +87,7 @@ export class RoundTimerBarComponent {
         const second = Math.ceil(remaining / 1000);
         if (second !== this.#lastUrgentSecond) {
           this.#lastUrgentSecond = second;
+          this.urgentAnnouncement.set(`${second} segundo${second === 1 ? '' : 's'} restante${second === 1 ? '' : 's'}`);
           this.#audio.urgentTick();
           this.#haptics.urgent();
         }

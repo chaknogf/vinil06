@@ -145,6 +145,8 @@ export interface RoomState {
   readonly results: readonly RoundResultEntry[];
   readonly karaoke: KaraokeTurn | null;
   readonly manual: boolean;
+  /** True mientras la sala espera a que la pista tenga buffer y empiece a sonar. */
+  readonly audioWaiting?: boolean;
   /** Margen real de escucha elegido por el host, siempre entre 8000 y 15000 ms. */
   readonly listenDurationMs: number;
   /** Fuente de audio activa del anfitrión (con fallback ya aplicado). */

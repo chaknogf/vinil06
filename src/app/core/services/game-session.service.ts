@@ -43,8 +43,18 @@ export class GameSessionService implements OnDestroy {
   readonly roomCode = signal('');
   readonly connection = signal<ConnectionStatus>('idle');
   readonly privacyVisible = signal(false);
+  /** Distingue el consentimiento del host del aviso informativo del invitado. */
+  readonly privacyForHost = computed(() => {
+    // `#pendingHost` es un campo plano: sin leer `privacyVisible()` (la señal que
+    // cambia al abrir el modal) el computed quedaba cacheado en false y el host
+    // veía el copy de invitado y cancelaba la creación de la sala.
+    this.privacyVisible();
+    return this.role() === 'host' || this.#pendingHost !== null;
+  });
   /** Aviso persistente del lobby (p. ej. tras cancelar la creación de sala). */
   readonly notice = signal('');
+  /** La sala efímera venció: el invitado necesita una salida explícita. */
+  readonly roomExpired = signal(false);
   /** true mientras el modal debe derivar al login de Spotify antes de activar. */
   readonly pendingConnectSpotify = signal(false);
   readonly remoteState = signal<RoomState | null>(null);
@@ -93,13 +103,18 @@ export class GameSessionService implements OnDestroy {
   #pendingHost: HostSetup | null = null;
   #helloSent = false;
   #presenceId: ReturnType<typeof setInterval> | null = null;
+  /** Reenvío corto de ANSWER: STATE no llega durante la ventana de 6 s. */
+  #answerRetryId: ReturnType<typeof setInterval> | null = null;
+  #answerRetries = 0;
   #lastSeen = new Map<string, number>();
   /** Firma del snapshot sin `hostNow`: evita publicar el estado en cada latido. */
   #lastStateSignature = '';
   #roomCreatedAt = 0;
+  #ttlWarned = false;
+  /** Cuándo entró el invitado: solo se usa para avisar si la sala caducó. */
+  #guestRoomAt = 0;
   #lastStateAt = 0;
   #lastAnswer: { readonly optionId: string; readonly roundIndex: number } | null = null;
-  #replayedAnswerRound = -1;
   #subs: Subscription[] = [];
   #unloadHandler: ((event: Event) => void) | null = null;
   readonly #visibilityHandler = () => {
@@ -323,9 +338,10 @@ export class GameSessionService implements OnDestroy {
     this.#helloSent = false;
     this.#lastStateAt = Date.now();
     this.#lastAnswer = null;
-    this.#replayedAnswerRound = -1;
     this.#guestStore.save(code, name, this.clientId);
-    this.recoverableGuestRoom.set(this.#guestStore.load());
+    const saved = this.#guestStore.load();
+    this.recoverableGuestRoom.set(saved);
+    this.#guestRoomAt = saved?.savedAt ?? Date.now();
     this.#sync.connect(code, 'player', this.clientId);
     this.#startPresence();
     this.#sendHello();
@@ -372,6 +388,7 @@ export class GameSessionService implements OnDestroy {
       this.clockOffset.set(0);
       this.#lastStateSignature = '';
       this.#roomCreatedAt = record.createdAt;
+      this.#ttlWarned = false;
       this.#startPresence();
       this.#sync.connect(record.code, 'host', this.clientId);
       this.#engine.resumeRestoredAudio();
@@ -404,7 +421,8 @@ export class GameSessionService implements OnDestroy {
     const role = this.role();
     const code = this.roomCode();
     if (!role || !code) return;
-    this.remoteState.set(null);
+    // Conservamos el último snapshot: borrarlo tiraba el marcador y la pantalla
+    // caía a "Conectando…" aunque la sala y el puesto seguían vivos.
     this.#helloSent = false;
     // 0 desarma el watchdog mientras se abre el nuevo Peer; el primer STATE o
     // PING que llegue vuelve a ponerlo en marcha.
@@ -424,6 +442,7 @@ export class GameSessionService implements OnDestroy {
     }
   ): void {
     this.#stopPresence();
+    this.#stopAnswerRetry();
     if (this.role() === 'player' && !options?.silent) {
       this.#sync.publish('BYE', {});
     }
@@ -432,8 +451,10 @@ export class GameSessionService implements OnDestroy {
     }
     this.recoverableGuestRoom.set(options?.keepGuestSession ? this.#guestStore.load() : null);
     this.#lastAnswer = null;
-    this.#replayedAnswerRound = -1;
     this.#lastStateAt = 0;
+    this.#guestRoomAt = 0;
+    this.#ttlWarned = false;
+    this.roomExpired.set(false);
     if (options?.closeRoom) this.#sync.closeRoom();
     else this.#sync.disconnect();
     this.role.set(null);
@@ -465,16 +486,42 @@ export class GameSessionService implements OnDestroy {
       const roundIndex = this.remoteState()?.roundIndex ?? -1;
       this.#lastAnswer = { optionId, roundIndex };
       this.#sync.publish('ANSWER', { optionId, answeredAtMs: 0 });
+      this.#startAnswerRetry();
     }
   }
 
-  #replayAnswer(state: RoomState): void {
+  /**
+   * Reenvía la MISMA respuesta (sin mensajes nuevos) hasta que el host la
+   * confirma en `Player.answered` del snapshot o se cierra la ronda. El host
+   * deduplica por jugador, así que los reintentos son inocuos. STATE no suele
+   * llegar durante los 6 s de respuesta: por eso también hay un intervalo corto.
+   */
+  #replayAnswer(state: RoomState | null): void {
     const answer = this.#lastAnswer;
-    if (!answer || state.phase !== 'FLIP_6S') return;
-    if (state.roundIndex !== answer.roundIndex) return;
-    if (this.#replayedAnswerRound === state.roundIndex) return;
-    this.#replayedAnswerRound = state.roundIndex;
+    if (!state || !answer || state.phase !== 'FLIP_6S' || state.roundIndex !== answer.roundIndex) {
+      this.#stopAnswerRetry();
+      return;
+    }
+    if (state.players.find((player) => player.id === this.clientId)?.answered) {
+      this.#stopAnswerRetry();
+      return;
+    }
+    if (this.#answerRetries++ >= 10) {
+      this.#stopAnswerRetry();
+      return;
+    }
     this.#sync.publish('ANSWER', { optionId: answer.optionId, answeredAtMs: 0 });
+  }
+
+  #startAnswerRetry(): void {
+    this.#stopAnswerRetry();
+    this.#answerRetries = 0;
+    this.#answerRetryId = setInterval(() => this.#replayAnswer(this.remoteState()), 700);
+  }
+
+  #stopAnswerRetry(): void {
+    if (this.#answerRetryId !== null) clearInterval(this.#answerRetryId);
+    this.#answerRetryId = null;
   }
 
   useWildcard(): void {
@@ -495,8 +542,20 @@ export class GameSessionService implements OnDestroy {
     if (this.role() === 'host') this.#engine.spin();
   }
 
+  /** Reintenta el audio con una petición nueva; sala, jugadores y ronda intactos. */
+  retryAudio(): void {
+    if (this.role() === 'host') this.#engine.retryAudio();
+  }
+
   advance(): void {
-    if (this.role() === 'host') this.#engine.advance();
+    if (this.role() === 'host') {
+      // Partida nueva: el TTL de 30 min vuelve a contar desde cero.
+      if (this.#engine.phase() === 'PODIUM') {
+        this.#roomCreatedAt = Date.now();
+        this.#ttlWarned = false;
+      }
+      this.#engine.advance();
+    }
   }
 
   showPodium(): void {
@@ -547,6 +606,7 @@ export class GameSessionService implements OnDestroy {
     this.roomCode.set(code);
     this.#pendingHost = null;
     this.#roomCreatedAt = Date.now();
+    this.#ttlWarned = false;
     this.#lastStateSignature = '';
     this.#startPresence();
 
@@ -573,7 +633,19 @@ export class GameSessionService implements OnDestroy {
     this.#stopPresence();
     this.#presenceId = setInterval(() => {
       const now = Date.now();
+      const ttl = environment.roomTtlMs > 0 ? environment.roomTtlMs : 30 * 60 * 1000;
       if (this.role() === 'player') {
+        // El host cierra la sala al vencer el TTL; si además llevamos sin señal,
+        // dejamos de prometer una reconexión que ya no va a llegar.
+        if (
+          !this.roomExpired() &&
+          this.#guestRoomAt > 0 &&
+          now - this.#guestRoomAt >= ttl &&
+          this.connection() === 'unavailable'
+        ) {
+          this.roomExpired.set(true);
+          return;
+        }
         this.#sendHello(true);
         // Un DataChannel puede estar "open" sin entregar datos. Si el host
         // calló más de 8 s, intentamos reconectar en vez de esperar forever.
@@ -586,7 +658,6 @@ export class GameSessionService implements OnDestroy {
         }
         return;
       }
-      const ttl = environment.roomTtlMs > 0 ? environment.roomTtlMs : 30 * 60 * 1000;
       if (
         this.role() === 'host' &&
         this.#sync.kind === 'peer' &&
@@ -594,10 +665,21 @@ export class GameSessionService implements OnDestroy {
         now - this.#roomCreatedAt >= ttl
       ) {
         this.notice.set('La sala se cerró automáticamente a los 30 minutos.');
+        this.roomExpired.set(true);
         const expired = this.roomCode();
         this.leave();
         void this.#store.clear(expired);
         return;
+      }
+      // Aviso anticipado: sin él el cierre parecía un fallo de red.
+      if (
+        this.role() === 'host' &&
+        !this.#ttlWarned &&
+        this.#roomCreatedAt > 0 &&
+        now - this.#roomCreatedAt >= ttl - 60_000
+      ) {
+        this.#ttlWarned = true;
+        this.notice.set('La sala se cierra en 1 minuto. Termina la partida o empieza otra.');
       }
       if (this.role() !== 'host' || this.#sync.presence$) return;
       // Los celulares estrangulan los timers en segundo plano: 12 s expulsaba

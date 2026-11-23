@@ -1,10 +1,17 @@
-<section class="glass-panel karaoke-card" aria-label="Turno de karaoke ruleta rusa">
+<section
+  class="glass-panel karaoke-card"
+  [class.is-my-turn]="isMyTurn()"
+  aria-label="Turno de karaoke ruleta rusa"
+>
+  @if (isMyTurn()) {
+    <p class="my-turn-banner" role="status">★ TU TURNO · canta ahora</p>
+  }
   <header class="head">
     <div class="row">
       <span class="disc" aria-hidden="true"></span>
       <div>
         <span class="eyebrow">Ruleta Rusa</span>
-        <h2 class="title">Karaoke en curso</h2>
+        <h2 class="title">{{ isMyTurn() ? 'Te toca cantar' : 'Karaoke en curso' }}</h2>
       </div>
     </div>
     <div class="draw-chips">
@@ -29,7 +36,13 @@
     <div class="song-info">
       <strong class="song-title">{{ turn().track.title }}</strong>
       <span class="song-artist">{{ turn().track.artist }}</span>
-      <span class="singer">Turno de <b>{{ turn().singerName }}</b></span>
+      <span class="singer">
+        @if (isMyTurn()) {
+          Cantas <b>tú</b>
+        } @else {
+          Turno de <b>{{ turn().singerName }}</b>
+        }
+      </span>
     </div>
   </div>
 
@@ -61,7 +74,7 @@
       }
     </button>
     <button type="button" class="btn btn-primary" [disabled]="!canInteract()" (click)="done.emit()">
-      Terminé mi turno
+      {{ isMyTurn() ? 'Terminé mi turno' : 'Esperando al cantante' }}
     </button>
   </div>
 </section>

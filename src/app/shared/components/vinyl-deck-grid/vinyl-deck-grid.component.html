@@ -41,6 +41,8 @@
               [src]="coverSrc(card)"
               [alt]="card.title + ' - ' + card.artist"
               loading="eager"
+              fetchpriority="high"
+              decoding="async"
               (error)="onCoverError(card.id)"
             />
             @if (card.year) {

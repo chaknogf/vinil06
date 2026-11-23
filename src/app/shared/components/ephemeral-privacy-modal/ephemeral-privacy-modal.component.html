@@ -1,8 +1,9 @@
 @if (visible()) {
-  <div class="backdrop">
+  <div class="backdrop" (focusin)="onFocusIn($event)">
     <section
+      #panel
       class="panel glass-panel"
-      (keydown)="onKeydown($event)"
+      tabindex="-1"
       role="dialog"
       aria-modal="true"
       aria-labelledby="ephemeral-title"
@@ -19,12 +20,26 @@
           </svg>
         </div>
         <div>
-          <span class="eyebrow">Antes de activar el tablero</span>
+          <span class="eyebrow">
+            {{ isHost() ? 'Antes de activar el tablero' : 'Cómo funciona esta sala' }}
+          </span>
           <h2 id="ephemeral-title" class="title">Sesión efímera y privada</h2>
         </div>
       </header>
 
       <div id="ephemeral-copy" class="copy">
+        @if (!isHost()) {
+          <p>
+            <strong>Tu apodo y un identificador se guardan solo en este dispositivo</strong>
+            (localStorage, 30 min) para que puedas volver a la sala con tu marcador. No hay cuentas,
+            correos ni tokens de Spotify: el anfitrión controla la música en su altavoz.
+          </p>
+          <p>
+            <strong>Nada de tus respuestas se guarda ni se envía a un servidor.</strong> Solo viaja
+            entre tú y el anfitrión por WebRTC para dibujar el tablero. Cerrar la pestaña no borra tu
+            identidad local: puedes volver a entrar con el mismo código.
+          </p>
+        } @else {
         <p>
           <strong>Conectar tu Spotify Premium es opcional.</strong> Si lo haces, Vinil06 usa un
           flujo PKCE para coordinar la música (play en la escucha, pausa al voltear). Por defecto se
@@ -42,6 +57,7 @@
           para poder recuperarla tras recargar, y tus ajustes del lobby en <strong>localStorage</strong>.
           Se borra al cerrar la sala o al vencer, y los invitados no guardan nada.
         </p>
+        }
       </div>
 
       @if (error()) {
@@ -49,13 +65,18 @@
       }
 
       <div class="actions">
-        <button #acceptButton type="button" class="btn btn-primary btn-block" (click)="accept.emit()">
-          Aceptar y activar tablero
-        </button>
-        <button type="button" class="btn btn-ghost btn-block" (click)="manual.emit()">
-          Usar solo como tablero manual
-        </button>
-        <button type="button" class="text-btn" (click)="dismiss.emit()">Ahora no</button>
+        @if (isHost()) {
+          <button type="button" class="btn btn-primary btn-block" (click)="accept.emit()">
+            Aceptar y activar tablero
+          </button>
+          <button type="button" class="btn btn-ghost btn-block" (click)="manual.emit()">
+            Usar solo como tablero manual
+          </button>
+          <button type="button" class="text-btn" (click)="dismiss.emit()">Ahora no</button>
+        } @else {
+          <p class="guest-note">No necesitas activar nada: entra con el código del anfitrión para jugar.</p>
+          <button type="button" class="btn btn-primary btn-block" (click)="dismiss.emit()">Entendido</button>
+        }
       </div>
     </section>
   </div>

@@ -593,6 +593,7 @@
 
 .recovery-banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
@@ -615,6 +616,20 @@
 
 .recovery-actions .btn {
   min-height: 44px;
+}
+
+.recovery-confirm {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(251, 113, 133, 0.28);
+}
+
+.btn-danger {
+  color: #fda4af;
+  border-color: rgba(251, 113, 133, 0.4);
 }
 
 .btn-ghost {

@@ -83,3 +83,33 @@
   border: 1px solid rgba(254, 215, 170, 0.4);
   cursor: pointer;
 }
+
+/* El nuevo SW no fuerza la recarga: el host decide cuándo conviene (podría
+   estar en mitad de una ronda) y el banner nunca tapa los controles. */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c7d2fe;
+  background: rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+}
+
+.update-banner button {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 900;
+  color: #eef2ff;
+  background: rgba(99, 102, 241, 0.35);
+  border: 1px solid rgba(165, 180, 252, 0.5);
+  cursor: pointer;
+}

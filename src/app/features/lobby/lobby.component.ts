@@ -106,6 +106,9 @@ export class LobbyComponent {
   readonly recoverableRoom = this.session.recoverableRoom;
   readonly recoverableGuestRoom = this.session.recoverableGuestRoom;
   readonly recovering = this.session.recovering;
+  /** Borrar una copia guardada es irreversible: se confirma dentro del lobby. */
+  readonly confirmDiscard = signal(false);
+  readonly confirmForget = signal(false);
 
   readonly inSession = computed(() => this.session.inSession());
   readonly selectedMode = computed(() => MODES.find((m) => m.id === this.mode()) ?? MODES[0]!);
@@ -155,6 +158,10 @@ export class LobbyComponent {
 
   async createRoom(): Promise<void> {
     if (this.inSession() || this.joining()) return;
+    if (!this.validNickname()) {
+      this.error.set('Escribe tu apodo (al menos 2 caracteres) para crear la sala.');
+      return;
+    }
     this.joining.set(true);
     this.preview.unlock();
     const wantsSpotify = this.wantsSpotifyLogin();
@@ -276,6 +283,7 @@ export class LobbyComponent {
   }
 
   discardRecoverableRoom(): void {
+    this.confirmDiscard.set(false);
     this.session.discardRecoverableRoom();
   }
 
@@ -287,6 +295,7 @@ export class LobbyComponent {
   }
 
   forgetGuestRoom(): void {
+    this.confirmForget.set(false);
     this.session.forgetGuestRoom();
   }
 

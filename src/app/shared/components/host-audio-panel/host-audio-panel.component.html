@@ -39,6 +39,24 @@
     </div>
   }
 
+  @if (spotifyWaiting()) {
+    <div class="notice" role="status">
+      Esperando a que Spotify acepte la reproducción. La cuenta atrás empieza en cuanto lo haga;
+      si falla, suena el preview de iTunes en este dispositivo.
+    </div>
+  } @else if (audioWaiting()) {
+    <div class="notice" role="status">
+      Esperando a que la pista tenga buffer. La cuenta atrás empieza cuando suene.
+    </div>
+  }
+
+  @if (canRetryAudio()) {
+    <div class="yt-actions audio-retry">
+      <button type="button" class="yt-btn" (click)="retryAudio()">Reintentar audio</button>
+      <span class="retry-hint">Pedimos la pista de nuevo: sala, ronda y jugadores se conservan.</span>
+    </div>
+  }
+
   <div class="yt-actions">
     <button type="button" class="yt-btn" [class.yt-btn-active]="audio.mode() === 'ITUNES'" (click)="useItunes()">
       Usar iTunes
@@ -60,6 +78,21 @@
   @if (audio.spotifyDisconnected() && !spotifyBlocked()) {
     <div class="yt-actions connect-row">
       <button type="button" class="yt-btn btn-connect" (click)="connectSpotify()">Conectar Spotify</button>
+    </div>
+  }
+
+  @if (connectConfirm()) {
+    <div class="inline-confirm" role="group" aria-label="Confirmar conexión de Spotify">
+      <p class="retry-hint">
+        Conectar Spotify recarga la página. Guardamos la sala en este dispositivo: al volver,
+        pulsa «Recuperar sala» en el lobby.
+      </p>
+      <div class="yt-actions">
+        <button type="button" class="yt-btn" (click)="connectConfirm.set(false)">Cancelar</button>
+        <button type="button" class="yt-btn btn-connect" (click)="confirmConnectSpotify()">
+          Conectar y volver
+        </button>
+      </div>
     </div>
   }
 
@@ -97,7 +130,19 @@
       <button type="button" class="manual-btn" (click)="revealNow()">Revelar cartas ahora</button>
     }
     @if (canClose()) {
-      <button type="button" class="manual-btn" (click)="closeNow()">Cerrar ronda ahora</button>
+      <button type="button" class="manual-btn" (click)="requestCloseRound()">Cerrar ronda ahora</button>
     }
   </div>
+
+  @if (closeConfirm()) {
+    <div class="inline-confirm" role="group" aria-label="Confirmar cierre de ronda">
+      <p class="retry-hint">
+        Se cerrará la ronda para todos los jugadores, también para quienes aún no han respondido.
+      </p>
+      <div class="yt-actions">
+        <button type="button" class="yt-btn" (click)="closeConfirm.set(false)">Cancelar</button>
+        <button type="button" class="manual-btn" (click)="closeNow()">Cerrar de todos modos</button>
+      </div>
+    </div>
+  }
 </section>

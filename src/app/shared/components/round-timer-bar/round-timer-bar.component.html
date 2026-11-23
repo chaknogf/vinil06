@@ -8,16 +8,19 @@
 >
   <div class="timer-row">
     <span class="timer-label">{{ label() }}</span>
-    <span class="timer-value tabular">{{ seconds() }}s</span>
+    <span class="timer-value tabular">@if (remainingMs() > 0) { {{ seconds() }}s } @else { — }</span>
   </div>
 
   <div
     class="timer-track"
     role="progressbar"
+    [attr.aria-label]="label()"
     [attr.aria-valuenow]="percent()"
+    [attr.aria-valuetext]="seconds() + ' segundos restantes'"
     aria-valuemin="0"
     aria-valuemax="100"
   >
     <div class="timer-fill" [style.transform]="'scaleX(' + progress() + ')'"></div>
   </div>
+  <span class="sr-only" aria-live="polite">{{ urgentAnnouncement() }}</span>
 </section>

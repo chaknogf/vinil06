@@ -8,7 +8,9 @@
   align-items: center;
   gap: 10px;
   border-radius: 14px;
-  padding: 10px 38px 10px 12px;
+  /* El cierre va en su propia esquina: con 44px de área táctil, el padding
+     derecho tenía que dejar sitio para dos botones, no para uno. */
+  padding: 8px 56px 8px 12px;
   border-color: rgba(129, 140, 248, 0.35);
   box-shadow: var(--shadow-1);
 }
@@ -56,8 +58,9 @@
 
 .install-close {
   position: absolute;
-  top: 6px;
-  right: 8px;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
   width: 44px;
   height: 44px;
   border-radius: 8px;

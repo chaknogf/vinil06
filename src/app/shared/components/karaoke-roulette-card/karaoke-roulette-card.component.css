@@ -17,6 +17,23 @@
   animation: resultPop 300ms var(--ease) both;
 }
 
+.karaoke-card.is-my-turn {
+  border-color: rgba(251, 191, 36, 0.75);
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.3), 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.my-turn-banner {
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: #1c1304;
+  background: #fbbf24;
+}
+
 .head {
   display: flex;
   align-items: flex-start;

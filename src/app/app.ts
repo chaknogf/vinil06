@@ -1,9 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet } from '@angular/router';
+import { SwUpdate } from '@angular/service-worker';
 import { GameSessionService } from './core/services/game-session.service';
 import { SpotifyHostAudioService } from './core/services/spotify-host-audio.service';
 import { EphemeralPrivacyModalComponent } from './shared/components/ephemeral-privacy-modal/ephemeral-privacy-modal.component';
 import { InstallPromptComponent } from './shared/components/install-prompt/install-prompt.component';
+import { spotifyMessage } from './core/utils/spotify';
 
 @Component({
   selector: 'app-root',
@@ -17,10 +20,28 @@ export class App {
   readonly session = inject(GameSessionService);
   readonly spotify = inject(SpotifyHostAudioService);
   readonly spotifyError = signal('');
+  readonly updateAvailable = signal(false);
+  /** Opcional: los tests y el dev server no registran el service worker. */
+  readonly #updates = inject(SwUpdate, { optional: true });
 
   constructor() {
     // Si el navegador vuelve del flow PKCE, canjea el código y vuelve al lobby.
     void this.spotify.handleRedirect();
+
+    const updates = this.#updates;
+    if (updates?.isEnabled) {
+      updates.versionUpdates.pipe(takeUntilDestroyed()).subscribe((event) => {
+        if (event.type === 'VERSION_READY') this.updateAvailable.set(true);
+      });
+    }
+  }
+
+  /** Actualización no bloqueante: el host decide cuándo recargar su sala. */
+  async refreshApp(): Promise<void> {
+    if (!this.#updates) return;
+    await this.#updates.activateUpdate();
+    this.updateAvailable.set(false);
+    window.location.reload();
   }
 
   /**
@@ -38,9 +59,7 @@ export class App {
       // connect() navega al login; si falla antes, antes el modal se cerraba
       // sin sala y sin explicación. Mostramos el error y dejamos la salida manual.
       if (this.spotify.status() === 'error') {
-        this.spotifyError.set(
-          this.spotify.message() || 'No se pudo conectar con Spotify. Puedes seguir en modo manual.'
-        );
+        this.spotifyError.set(spotifyMessage(this.spotify.status(), this.spotify.message()));
       }
       return;
     }

@@ -11,7 +11,7 @@ export class PodiumComponent {
   readonly players = input.required<readonly Player[]>();
   readonly title = input('¡Resultados finales!');
   readonly subtitle = input('Así quedó el marcador tras las 12 rondas.');
-  readonly actionLabel = input('Jugar otra partida (limpiar memoria)');
+  readonly actionLabel = input('Jugar otra partida');
   readonly showAction = input(false);
   readonly highlightId = input('');
 

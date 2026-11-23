@@ -6,6 +6,7 @@ import {
   PublicOption,
   Track
 } from '../models/game.models';
+import { spotifyMessage } from '../utils/spotify';
 import { SpotifyHostAudioService } from './spotify-host-audio.service';
 
 const DEFAULT_LISTEN_SEC = 8;
@@ -53,17 +54,10 @@ export class HostAudioControllerService {
     if (this.spotify.status() === 'connected' && this.spotify.playbackFailed()) {
       return 'Spotify no pudo reproducir esta pista. Suena el preview de iTunes: reintenta el dispositivo o cambia la fuente.';
     }
-    switch (this.spotify.status()) {
-      case 'free':
-        return 'Tu Spotify es Free: no podemos controlarlo. Suena el preview de iTunes; la ronda sigue igual.';
-      case 'no-device':
-        return 'Spotify no tiene un dispositivo activo: en móvil abre la app o usa una bocina. Suena el preview de iTunes.';
-      case 'error':
-      case 'not-configured':
-        return 'Spotify no está disponible. Suena el preview de iTunes; cambia la fuente si quieres.';
-      default:
-        return '';
-    }
+    const status = this.spotify.status();
+    // Mientras conecta no hay fallo que mostrar: la sala ya está esperando.
+    if (status === 'idle' || status === 'connecting' || status === 'connected') return '';
+    return spotifyMessage(status);
   });
 
   readonly spotifyDisconnected = computed(

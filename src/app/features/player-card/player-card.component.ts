@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { comparePlayersByRank, GamePhase, RoomState } from '../../core/models/game.models';
+import { GameSessionService } from '../../core/services/game-session.service';
 import { LeaderboardPanelComponent } from '../../shared/components/leaderboard-panel/leaderboard-panel.component';
 import { PodiumComponent } from '../../shared/components/podium/podium.component';
 import { VinylDeckArenaComponent } from './vinyl-deck-arena.component';
@@ -20,9 +21,12 @@ import { VinylDeckArenaComponent } from './vinyl-deck-arena.component';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PlayerCardComponent {
+  readonly session = inject(GameSessionService);
   readonly state = input.required<RoomState>();
   readonly clientId = input('');
   readonly canInteract = input(true);
+  /** La misma vista se incrusta en el tablero del host: solo el invitado sale. */
+  readonly isGuest = computed(() => this.session.role() === 'player');
 
   readonly phase = computed<GamePhase>(() => this.state().phase);
   readonly listening = computed(

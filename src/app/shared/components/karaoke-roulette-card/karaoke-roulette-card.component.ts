@@ -22,6 +22,8 @@ export class KaraokeRouletteCardComponent {
   readonly startedAt = input(0);
   readonly clockOffset = input(0);
   readonly canInteract = input(false);
+  /** El cantante ve su turno destacado; los demás solo observan. */
+  readonly isMyTurn = input(false);
   readonly active = input(true);
 
   readonly wildcard = output<void>();

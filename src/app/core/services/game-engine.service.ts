@@ -102,6 +102,8 @@ export class GameEngineService {
   readonly hostTrack = signal<PublicOption | null>(null);
   /** Preview de iTunes de la carta correcta: es la fuente canónica de audio. */
   readonly audioUrl = signal('');
+  /** La sala sigue en SPINNING hasta que la pista suena de verdad. */
+  readonly audioWaiting = signal(false);
   readonly manual = signal(false);
 
   /** Latece 1 Hz para refrescar hostNow y el desfase de reloj de los clientes. */
@@ -124,6 +126,7 @@ export class GameEngineService {
       results: this.results(),
       karaoke: this.karaoke(),
       manual: this.manual(),
+      audioWaiting: this.audioWaiting(),
       listenDurationMs: this.#hostAudio.listenDurationMs(),
       hostAudioMode: this.#hostAudio.effectiveMode()
     };
@@ -144,6 +147,10 @@ export class GameEngineService {
   #answerOpenedAt = 0;
   #timers: Array<ReturnType<typeof setTimeout>> = [];
   #heartbeatId: ReturnType<typeof setInterval> | null = null;
+  /** Generación del intento de audio: ignora promesas de reintentos anteriores. */
+  #audioAttempt = 0;
+  /** Reanuda el intento actual (con petición nueva) sin tocar la sala. */
+  #pendingAudioStart: (() => void) | null = null;
 
   /** Inyecta el pack sincronizado (solo RAM) antes de crear la sala. */
   setCatalog(tracks: readonly VinilTrack[]): void {
@@ -274,10 +281,28 @@ export class GameEngineService {
     // Service ya fue desbloqueado al crear/entrar en la sala.
   }
 
-  /** LOBBY/RESULT -> SPINNING; PODIUM -> partida nueva. */
+  /** LOBBY/RESULT -> SPINNING; PODIUM -> partida nueva SIN perder sala ni jugadores. */
   advance(): void {
     if (this.phase() === 'PODIUM') {
+      const code = this.roomCode();
+      const players = this.players().map((player) => ({
+        ...player,
+        score: 0,
+        lastDelta: 0,
+        answered: false,
+        wildcards: 1
+      }));
+      const mode = this.mode();
+      const manual = this.manual();
+      const catalog = this.#packCatalog;
       this.reset();
+      this.roomCode.set(code);
+      this.mode.set(mode);
+      this.manual.set(manual);
+      this.players.set(players);
+      this.#packCatalog = catalog;
+      this.#startHeartbeat();
+      this.#prepareNextRound(0);
       return;
     }
     if (this.phase() === 'ROUND_RESULT' && this.roundIndex() < TOTAL_ROUNDS - 1) {
@@ -329,7 +354,12 @@ export class GameEngineService {
     this.hostTrack.set(track);
     this.#hostAudio.prepareTrack(track);
     this.#preview.preload(sourceTrack.previewUrl ?? '');
-    this.#playTrack(track, sourceTrack.previewUrl ?? '', 'Spotify falló: suena el preview del comodín.');
+    // El turno ya está abierto: el comodín no rearma ningún cronómetro.
+    void this.#playSoundNow(
+      track,
+      sourceTrack.previewUrl ?? '',
+      'Spotify falló: suena el preview del comodín.'
+    );
     this.#audio.flipChime();
     this.#haptics.flip();
   }
@@ -528,26 +558,63 @@ export class GameEngineService {
       }
   }
 
-  /**
-   * Reproduce la pista correcta en el altavoz del host. iTunes siempre suena;
-   * Spotify solo sustituye al preview cuando está realmente conectado.
-   */
-  #playTrack(track: PublicOption | null, previewUrl: string, failureMessage: string): void {
-    if (this.#hostAudio.effectiveMode() === 'SPOTIFY_PREMIUM' && track) {
-      void this.#spotify.play(track).then((ok) => {
-        if (!ok) this.#playFallback(previewUrl, failureMessage);
-      });
-      return;
+  /** Spotify remoto, sin timeout: solo confirmamos que aceptó el comando. */
+  async #trySpotify(track: PublicOption | null, failureMessage: string): Promise<boolean> {
+    if (this.#hostAudio.effectiveMode() !== 'SPOTIFY_PREMIUM' || !track) return false;
+    try {
+      if (await this.#spotify.play(track)) return true;
+    } catch {
+      // Caemos al preview de iTunes, que sí espera a que suene de verdad.
     }
-    this.#preview.play(previewUrl);
+    this.#hostAudio.warn(failureMessage);
+    return false;
   }
 
-  /** Última red de seguridad: si Spotify falla, que haya sonido. */
-  #playFallback(url: string, message: string): void {
-    const phase = this.phase();
-    if (!url || (phase !== 'LISTEN_8S' && phase !== 'KARAOKE_TURN')) return;
-    this.#hostAudio.warn(message);
-    this.#preview.play(url);
+  /**
+   * Reproduce la pista en el altavoz del host y resuelve CUANDO YA SUENA.
+   * No hay timeout: la sala espera. Si Spotify falla, avisamos y seguimos
+   * esperando al `playing` del preview de iTunes, que es la fuente canónica.
+   * Un intento cancelado por `retryAudio()` nunca reabre la fase.
+   */
+  async #playTrack(
+    track: PublicOption | null,
+    previewUrl: string,
+    failureMessage: string,
+    attempt: number
+  ): Promise<boolean> {
+    if (await this.#trySpotify(track, failureMessage)) return true;
+    if (attempt !== this.#audioAttempt) return false;
+    return this.#preview.playWhenReady(previewUrl);
+  }
+
+  /** Cambio de pista en caliente (comodín): no rearma ningún cronómetro ni espera. */
+  async #playSoundNow(
+    track: PublicOption | null,
+    previewUrl: string,
+    failureMessage: string
+  ): Promise<void> {
+    if (await this.#trySpotify(track, failureMessage)) return;
+    if (previewUrl) await this.#preview.play(previewUrl);
+  }
+
+  /**
+   * Botón «Reintentar audio»: nueva petición de la pista, sin resetear el motor,
+   * sin desconectar canales y sin perder jugadores, marcador ni ronda.
+   */
+  retryAudio(): void {
+    if (this.phase() === 'SPINNING' && this.audioWaiting()) {
+      this.#audioAttempt++;
+      this.#preview.cancelWait();
+      this.#preview.markRetry();
+      this.#hostAudio.dismissNotice();
+      this.#pendingAudioStart?.();
+      return;
+    }
+    // Si el audio ya estaba sonando pero se cortó, basta con pedirlo de nuevo.
+    if (this.#preview.blocked()) {
+      this.#preview.retry();
+      this.#hostAudio.dismissNotice();
+    }
   }
 
   #schedule(fn: () => void, delayMs: number): void {
@@ -557,6 +624,10 @@ export class GameEngineService {
   #clearTimers(): void {
     this.#timers.forEach(clearTimeout);
     this.#timers = [];
+    this.#audioAttempt++;
+    this.#pendingAudioStart = null;
+    this.audioWaiting.set(false);
+    this.#preview.cancelWait();
   }
 
   #startHeartbeat(): void {
@@ -677,8 +748,9 @@ export class GameEngineService {
       this.#pendingPack ??= this.#nextPack();
     }
     const next = this.#pendingKaraokeTrack ?? this.#pendingPack?.tracks[0] ?? null;
+    // NO publicamos `hostTrack` aquí: el panel debe seguir mostrando la pista de
+    // la ronda que acaba de cerrar. La próxima se revela al girar (`spin()`).
     if (next) {
-      this.hostTrack.set(trackToOption(next));
       this.#hostAudio.prepareTrack(next);
       this.#preview.preload(next.previewUrl ?? '');
     }
@@ -693,17 +765,38 @@ export class GameEngineService {
     if (!this.#pack) this.#pack = this.#nextPack();
     const pack = this.#pack;
     this.options.set(pack.tracks.map(trackToOption));
-    this.#enterPhase('LISTEN_8S');
     const url = pack.tracks[0]?.previewUrl ?? '';
     // El preview es la fuente canónica: sale del altavoz del host y coincide
     // exactamente con la carta marcada como correcta.
     this.audioUrl.set(url);
 
-    // La ventana de escucha empieza ya: la latencia de la API no se la come.
-    this.#schedule(() => this.#beginFlip(), this.#hostAudio.listenDurationMs());
-    this.#playTrack(this.hostTrack(), url, 'Spotify no pudo reproducir: suena el preview en este dispositivo.');
+    // La fase de escucha (y su cronómetro) arranca cuando la pista ya suena.
+    this.#startListenWhenReady(pack.bpm, url);
+  }
 
-    this.#audio.startBeat(pack.bpm);
+  #startListenWhenReady(bpm: number, url: string): void {
+    const start = (): void => {
+      if (this.phase() !== 'SPINNING') return;
+      const attempt = this.#audioAttempt;
+      this.#pendingAudioStart = start;
+      this.audioWaiting.set(true);
+      void this.#playTrack(
+        this.hostTrack(),
+        url,
+        'Spotify no pudo reproducir: suena el preview en este dispositivo.',
+        attempt
+      ).then((started) => {
+        // Ni un reintento viejo ni un play tardío pueden reabrir la escucha.
+        if (!started || attempt !== this.#audioAttempt || this.phase() !== 'SPINNING') return;
+        this.#pendingAudioStart = null;
+        this.audioWaiting.set(false);
+        this.#enterPhase('LISTEN_8S');
+        this.#schedule(() => this.#beginFlip(), this.#hostAudio.listenDurationMs());
+        this.#audio.startBeat(bpm);
+      });
+    };
+    this.#pendingAudioStart = start;
+    start();
   }
 
   #startKaraokeTurn(): void {
@@ -724,24 +817,43 @@ export class GameEngineService {
       return;
     }
 
+    const durationMs = randomInt(15000, 20000);
     this.karaoke.set({
       track: trackToOption(track),
       singerId: singer.id,
       singerName: singer.name,
       challenge: pickOne(KARAOKE_CHALLENGES) ?? KARAOKE_CHALLENGES[0]!,
-      durationMs: randomInt(15000, 20000),
+      durationMs,
       wildcardUsed: false,
       wildcardsLeft: singer.wildcards
     });
-    this.#enterPhase('KARAOKE_TURN');
     this.audioUrl.set(track.previewUrl ?? '');
     this.#hostAudio.prepareTrack(track);
-    this.#schedule(() => this.finishKaraoke('timeout'), this.karaoke()?.durationMs ?? 18000);
 
-    const url = track.previewUrl ?? '';
-    this.#playTrack(this.hostTrack(), url, 'Spotify no pudo reproducir: suena el preview del karaoke.');
-    this.#audio.flipChime();
-    this.#haptics.flip();
+    // Igual que en la escucha: el turno y su cuenta atrás empiezan juntos, en
+    // cuanto la pista tiene buffer y se oye en el altavoz del host.
+    const start = (): void => {
+      if (this.phase() !== 'SPINNING') return;
+      const attempt = this.#audioAttempt;
+      this.#pendingAudioStart = start;
+      this.audioWaiting.set(true);
+      void this.#playTrack(
+        this.hostTrack(),
+        track.previewUrl ?? '',
+        'Spotify no pudo reproducir: suena el preview del karaoke.',
+        attempt
+      ).then((started) => {
+        if (!started || attempt !== this.#audioAttempt || this.phase() !== 'SPINNING') return;
+        this.#pendingAudioStart = null;
+        this.audioWaiting.set(false);
+        this.#enterPhase('KARAOKE_TURN');
+        this.#schedule(() => this.finishKaraoke('timeout'), durationMs);
+        this.#audio.flipChime();
+        this.#haptics.flip();
+      });
+    };
+    this.#pendingAudioStart = start;
+    start();
   }
 
   #beginFlip(): void {

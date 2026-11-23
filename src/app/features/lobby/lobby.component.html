@@ -19,7 +19,7 @@
       <div class="hero-badges">
         <span class="badge badge-accent"><span class="dot"></span> Sin cuentas</span>
         <span class="badge badge-indigo">Spotify opcional</span>
-        <span class="badge badge-amber">Sala local · 30 min</span>
+        <span class="badge badge-amber">Sala efímera · 30 min</span>
       </div>
     </header>
 
@@ -38,10 +38,27 @@
           <button type="button" class="btn btn-primary" [disabled]="recovering()" (click)="recoverRoom()">
             {{ recovering() ? 'Recuperando…' : 'Recuperar sala' }}
           </button>
-          <button type="button" class="btn btn-ghost" [disabled]="recovering()" (click)="discardRecoverableRoom()">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            [disabled]="recovering()"
+            [attr.aria-expanded]="confirmDiscard()"
+            (click)="confirmDiscard.set(!confirmDiscard())"
+          >
             Descartar
           </button>
         </div>
+        @if (confirmDiscard()) {
+          <div class="recovery-confirm" role="group" aria-label="Confirmar descarte">
+            <p>Se borrará la copia de este dispositivo y no podrás recuperar la sala tras recargar.</p>
+            <div class="recovery-actions">
+              <button type="button" class="btn btn-ghost" (click)="confirmDiscard.set(false)">Cancelar</button>
+              <button type="button" class="btn btn-ghost btn-danger" (click)="discardRecoverableRoom()">
+                Descartar de todos modos
+              </button>
+            </div>
+          </div>
+        }
       </section>
     }
 
@@ -53,8 +70,26 @@
         </div>
         <div class="recovery-actions">
           <button type="button" class="btn btn-primary" (click)="resumeGuestRoom()">Volver a la sala</button>
-          <button type="button" class="btn btn-ghost" (click)="forgetGuestRoom()">Olvidar</button>
+          <button
+            type="button"
+            class="btn btn-ghost"
+            [attr.aria-expanded]="confirmForget()"
+            (click)="confirmForget.set(!confirmForget())"
+          >
+            Olvidar
+          </button>
         </div>
+        @if (confirmForget()) {
+          <div class="recovery-confirm" role="group" aria-label="Confirmar olvido">
+            <p>Perderás el acceso con tu apodo y marcador guardados en este dispositivo.</p>
+            <div class="recovery-actions">
+              <button type="button" class="btn btn-ghost" (click)="confirmForget.set(false)">Cancelar</button>
+              <button type="button" class="btn btn-ghost btn-danger" (click)="forgetGuestRoom()">
+                Olvidar de todos modos
+              </button>
+            </div>
+          </div>
+        }
       </section>
     }
 
@@ -105,15 +140,15 @@
           @if (catalog.loading()) {
             Sincronizando portadas y metadatos…
           } @else if (catalog.source() === 'local' && pack() === 'pop-en') {
-            El pop inglés necesita red: sin conexión se usa el catálogo local en español.
+            Catálogo local en español activo: funciona sin red. El pack inglés necesita conexión.
           } @else if (catalog.source() === 'local' && pack() === 'latino') {
-            Salsa, merengue y reguetón necesitan red: sin conexión se usa el catálogo local.
+            Catálogo local activo: funciona sin red. Salsa, merengue y reguetón necesitan conexión.
           } @else if (catalog.source() === 'local') {
-            Catálogo local activo · funciona sin red.
+            Catálogo local activo · las canciones funcionan sin red.
           } @else if (catalog.source() === 'remote') {
             Pack sincronizado · portadas reales listas.
           } @else {
-            Se usará el catálogo local si no hay red.
+            Se usará el catálogo local si no hay red · la sala compartida sí la necesita.
           }
         </p>
       </section>
@@ -129,10 +164,18 @@
           maxlength="18"
           autocomplete="nickname"
           placeholder="Tú (Host)"
+          [attr.aria-required]="true"
+          [attr.aria-invalid]="nickname().length > 0 && !validNickname()"
+          aria-describedby="host-nickname-help"
           [value]="nickname()"
           (input)="onNickname($any($event.target).value)"
           (keydown.enter)="createRoom()"
         />
+        @if (nickname().length > 0 && !validNickname()) {
+          <p id="host-nickname-help" class="field-error" role="alert">Escribe al menos 2 caracteres.</p>
+        } @else {
+          <p id="host-nickname-help" class="field-hint">Necesitamos tu apodo para mostrarte en el tablero.</p>
+        }
 
         <div class="field-group">
           <span class="field-label">Bots para probar solo</span>
@@ -229,7 +272,7 @@
           >
             <span>
               <strong>Tablero manual</strong>
-              <small>Tablero local, sin red · las fases siguen teniendo tiempo.</small>
+              <small>Tablero en este dispositivo, sin red · las fases siguen teniendo tiempo.</small>
             </span>
             <span class="switch" [class.switch-on]="manual()"></span>
           </button>

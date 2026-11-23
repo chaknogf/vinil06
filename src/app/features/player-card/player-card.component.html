@@ -14,7 +14,16 @@
       [highlightId]="clientId()"
       [showAction]="false"
     />
-    <p class="podium-wait" role="status">Esperando a que el anfitrión inicie otra partida…</p>
+    @if (isGuest()) {
+      <div class="podium-wait">
+        <p role="status">El anfitrión decide cuándo empieza otra partida. Puedes irte cuando quieras.</p>
+        <button type="button" class="btn btn-ghost btn-block" (click)="session.leave()">
+          Volver al lobby
+        </button>
+      </div>
+    } @else {
+      <p class="podium-wait" role="status">Esperando a que el anfitrión inicie otra partida…</p>
+    }
   } @else if (phase() !== 'LOBBY') {
     <app-leaderboard-panel
       [players]="state().players"
